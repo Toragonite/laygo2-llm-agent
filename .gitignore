@@ -1,0 +1,6 @@
+runs/
+pdk/
+.env
+*.mag
+__pycache__/
+.venv/

@@ -1,0 +1,6 @@
+[submodule "third_party/laygo2"]
+	path = third_party/laygo2
+	url = https://github.com/niftylab/laygo2.git
+[submodule "third_party/laygo2_workspace_sky130"]
+	path = third_party/laygo2_workspace_sky130
+	url = https://github.com/niftylab/laygo2_workspace_sky130.git
