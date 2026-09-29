@@ -1,0 +1,12 @@
+* Reference (schematic) netlist for LVS of logic_ver2 inv_2x (ref/golden/inv.py, nf=2).
+* Pin names = layout pin names (I, O, VDD, VSS).
+* Device values come from the laygo2 microtemplates the generator places
+*   (third_party/laygo2_workspace_sky130/magic_layout/skywater130_microtemplates_dense):
+*   nmos130_fast_center_nf2.mag: layer nmoslvt -> sky130_fd_pr__nfet_01v8_lvt, 2 fingers, W=0.5um L=0.15um each
+*   pmos130_fast_center_nf2.mag: layer pmos    -> sky130_fd_pr__pfet_01v8,     2 fingers, W=1.0um L=0.15um each
+* Style follows lvs_example (xschem): W = per-finger width, m = number of fingers.
+* NOTE: lvs_example's inv uses W=1.2/2.4, which do NOT match these templates (netgen: property errors).
+.subckt inv_2x I O VDD VSS
+XMN0 O I VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XMP0 O I VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1 nf=1 m=2
+.ends

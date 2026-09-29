@@ -1,0 +1,20 @@
+* nand_2x : LVS reference netlist for the golden layout ref/golden/nand.py (nf=2)
+* Topology from `.subckt nand B A Y VDD VSS NF=2` in
+*   third_party/laygo2_workspace_sky130/lvs_example/and_4in.spice
+* Changes vs. that netlist (so it matches what the layout actually draws):
+*   - subckt name nand_2x, pins renamed/reordered to the layout pins: Y -> OUT, order A B OUT VDD VSS
+*   - W from the templates, not the schematic: nmos130_fast_center_nf2 draws W=0.5,
+*     pmos130_fast_center_nf2 draws W=1.0 (L=0.15); nf=2 gives 2 fingers -> m=2
+*     (lvs_example had W=1.2 / 2.4, which the laygo2 templates do not draw)
+*   - ad/as/pd/ps/nrd/nrs/sa/sb/sd dropped: sky130A_setup.tcl deletes them before comparing
+*   - device names follow the layout instances (MN0/MN1/MP0/MP1) to make mismatch reports readable
+* Models: nfet_01v8_lvt (template layer nmoslvt), pfet_01v8 (template layer pmos)
+.subckt nand_2x A B OUT VDD VSS
+* pull-down stack OUT -[A]- net1 -[B]- VSS   (lvs_example XM1, XM2)
+XMN1 OUT A net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XMN0 net1 B VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+* parallel pull-up (lvs_example XM3, XM4)
+XMP0 OUT B VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XMP1 OUT A VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+.ends
+.end
