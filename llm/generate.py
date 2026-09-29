@@ -5,7 +5,7 @@ takes the python block of the last reply as gen.py and judges it once with flow/
 A failed check is only recorded. Nothing is sent back to the LLM (automatic feedback is out of scope).
 
 Usage:
-  uv run python llm/generate.py --cell nand_2x --netlist ref/netlist/nand.spice --model claude-sonnet-5-5
+  uv run python llm/generate.py --cell nand_2x --netlist ref/netlist/nand.spice --model <gpt model id>
   uv run python llm/generate.py --cell nand_2x --netlist ref/netlist/nand.spice --dry-run
   uv run python llm/generate.py --cell nand_2x --netlist ref/netlist/nand.spice \
       --provider mock --mock-reply ref/golden/nand.py        # pipeline test, not an experiment
@@ -58,21 +58,23 @@ def extract_python(reply: str):
     return blocks[-1] if blocks else None
 
 
-class AnthropicChat:
+class OpenAIChat:
+    """OpenAI Chat Completions. The key comes from OPENAI_API_KEY (environment or the repo's .env)."""
     def __init__(self, model, temperature, max_tokens):
-        import anthropic
+        import openai
         from dotenv import load_dotenv
         load_dotenv(REPO / ".env")
-        self.client = anthropic.Anthropic()
+        self.client = openai.OpenAI()
         self.model, self.temperature, self.max_tokens = model, temperature, max_tokens
 
     def send(self, system, messages):
-        kw = dict(model=self.model, max_tokens=self.max_tokens, system=system, messages=messages)
-        if self.temperature is not None:
+        kw = dict(model=self.model, max_completion_tokens=self.max_tokens,
+                  messages=[{"role": "system", "content": system}] + messages)
+        if self.temperature is not None:  # some reasoning models reject temperature, so only send it when set
             kw["temperature"] = self.temperature
-        resp = self.client.messages.create(**kw)
-        text = "".join(b.text for b in resp.content if b.type == "text")
-        return text, {"input_tokens": resp.usage.input_tokens, "output_tokens": resp.usage.output_tokens}
+        resp = self.client.chat.completions.create(**kw)
+        text = resp.choices[0].message.content or ""
+        return text, {"input_tokens": resp.usage.prompt_tokens, "output_tokens": resp.usage.completion_tokens}
 
 
 class MockChat:
@@ -93,8 +95,8 @@ def main():
     ap.add_argument("--netlist", required=True, help="reference SPICE netlist (also the LVS reference)")
     ap.add_argument("--placement-rules", default="(none)", help="design-specific placement rules text")
     ap.add_argument("--routing-rules", default="(none)", help="design-specific routing rules text")
-    ap.add_argument("--provider", choices=["anthropic", "mock"], default="anthropic")
-    ap.add_argument("--model", default=None, help="model id (required for --provider anthropic)")
+    ap.add_argument("--provider", choices=["openai", "mock"], default="openai")
+    ap.add_argument("--model", default=None, help="model id (required for --provider openai)")
     ap.add_argument("--temperature", type=float, default=None, help="omit to use the provider default")
     ap.add_argument("--max-tokens", type=int, default=8000)
     ap.add_argument("--attempt", type=int, default=1, help="index of this run when repeating a task")
@@ -112,7 +114,7 @@ def main():
 
     model = a.model or ("mock" if a.provider == "mock" else None)
     if model is None and not a.dry_run:
-        ap.error("--model is required for --provider anthropic")
+        ap.error("--model is required for --provider openai")
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     run = Path(a.out).resolve() if a.out else REPO / "runs" / "llm" / a.cell / f"{stamp}_{model or 'dry'}"
     run.mkdir(parents=True, exist_ok=True)
@@ -137,8 +139,14 @@ def main():
         print(json.dumps({"cell": a.cell, "dry_run": True, "run_dir": str(run), "turns": len(turns)}))
         return 0
 
-    chat = MockChat(a.mock_reply, len(turns)) if a.provider == "mock" else \
-        AnthropicChat(model, a.temperature, a.max_tokens)
+    try:
+        chat = MockChat(a.mock_reply, len(turns)) if a.provider == "mock" else \
+            OpenAIChat(model, a.temperature, a.max_tokens)
+    except Exception as e:  # e.g. OPENAI_API_KEY not set
+        meta["llm_error"] = f"client setup: {type(e).__name__}: {e}"
+        save()
+        print(json.dumps({"cell": a.cell, "model": model, "llm_error": meta["llm_error"], "run_dir": str(run)}))
+        return 2
 
     t0 = time.time()
     messages, reply = [], ""

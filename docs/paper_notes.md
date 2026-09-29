@@ -26,5 +26,5 @@
 | 2026-09-29 | 출력 skeleton | import·LAYOUT_OUT_DIR·export 줄은 고정 코드로 제공 | `check_cell.py` 출력 규약 때문. 배치·배선 내용은 없음 |
 | 2026-09-29 | 넷리스트 입력 | `*` 주석 줄 제거 후 입력 | `ref/netlist` 주석에 배치 힌트(직렬 순서, 소자 이름)가 있음 |
 | 2026-09-29 | 컨텍스트 세부 3항목 | 고정 skeleton 제공, 배치 규칙 4개(NMOS 아래 / 레일 tie / 같은 게이트 같은 열 / 직렬 인접), 배선 충돌 시 옆 열 우회 규칙 — 모두 유지 | 사용자 결정. 재현 조건으로 기록만 함 |
-| 2026-09-29 | LLM 호출 | Anthropic API, 턴마다 전체 대화 재전송, temperature 미지정 시 제공자 기본값 | `generate.py`. 논문은 ChatGPT-4 웹 채팅 |
+| 2026-09-29 | LLM 호출 | OpenAI GPT (Chat Completions API), 턴마다 전체 대화 재전송, temperature 미지정 시 제공자 기본값 | 사용자 결정: 논문(ChatGPT-4 웹 채팅)과 같은 계열. 모델 id는 API key 받은 뒤 결정 |
 | 2026-09-29 | 판정 | 마지막 응답의 마지막 ```python 블록을 `check_cell.py`로 1회 판정, 실패는 기록만 | 자동 피드백은 범위 밖 |
