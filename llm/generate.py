@@ -78,15 +78,25 @@ class OpenAIChat:
 
 
 class MockChat:
-    """Answers 'OK' to every turn and returns a given file as the final script. For pipeline tests only."""
-    def __init__(self, reply_file, n_turns):
+    """Answers 'OK' and returns a given file as the script on call n_turns (every call if None).
+    For pipeline tests only."""
+    def __init__(self, reply_file, n_turns=None):
         self.code, self.n_turns, self.calls = Path(reply_file).read_text(), n_turns, 0
 
     def send(self, system, messages):
         self.calls += 1
-        if self.calls == self.n_turns:
+        if self.n_turns is None or self.calls == self.n_turns:
             return "```python\n" + self.code + "```", {"input_tokens": 0, "output_tokens": 0}
         return "OK", {"input_tokens": 0, "output_tokens": 0}
+
+
+def run_check(gen, cell, netlist, out):
+    """Judge one generator with flow/check_cell.py and return its JSON result."""
+    proc = subprocess.run([sys.executable, str(REPO / "flow" / "check_cell.py"), "--gen", str(gen),
+                           "--cell", cell, "--ref", str(netlist), "--out", str(out)],
+                          cwd=REPO, capture_output=True, text=True)
+    lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("{")]
+    return json.loads(lines[-1]) if lines else {"error": proc.stderr[-2000:]}
 
 
 def main():
@@ -98,7 +108,7 @@ def main():
     ap.add_argument("--provider", choices=["openai", "mock"], default="openai")
     ap.add_argument("--model", default=None, help="model id (required for --provider openai)")
     ap.add_argument("--temperature", type=float, default=None, help="omit to use the provider default")
-    ap.add_argument("--max-tokens", type=int, default=8000)
+    ap.add_argument("--max-tokens", type=int, default=4096, help="gpt-4o-2024-05-13 allows at most 4096")
     ap.add_argument("--attempt", type=int, default=1, help="index of this run when repeating a task")
     ap.add_argument("--mock-reply", help="file returned as the final script by --provider mock")
     ap.add_argument("--out", help="run directory (default runs/llm/<cell>/<timestamp>_<model>/)")
@@ -169,11 +179,7 @@ def main():
     meta["code_found"] = code is not None
     if code is not None:
         (run / "gen.py").write_text(code)
-        proc = subprocess.run([sys.executable, str(REPO / "flow" / "check_cell.py"), "--gen", str(run / "gen.py"),
-                               "--cell", a.cell, "--ref", str(netlist_path), "--out", str(run / "check")],
-                              cwd=REPO, capture_output=True, text=True)
-        lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("{")]
-        meta["check"] = json.loads(lines[-1]) if lines else {"error": proc.stderr[-2000:]}
+        meta["check"] = run_check(run / "gen.py", a.cell, netlist_path, run / "check")
     save()
 
     chk = meta["check"] or {}
