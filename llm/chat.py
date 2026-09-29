@@ -13,7 +13,7 @@ Commands: /status (last result), /quit
 
 Usage:
   uv run python llm/chat.py --run runs/llm/nand_2x/<run_dir>
-  uv run python llm/chat.py --run <run_dir> --script instructions.txt     # one instruction per line
+  uv run python llm/chat.py --run <run_dir> --script instructions.txt     # instructions separated by "---" lines
   uv run python llm/chat.py --run <run_dir> --provider mock --mock-reply ref/golden/nand.py --script s.txt
 
 Output (inside the run directory): chat_<k>_user.md, chat_<k>_llm.md, gen_<k>.py, check_<k>/ and
@@ -52,6 +52,7 @@ def main():
     ap.add_argument("--provider", choices=["openai", "mock"], default=None, help="default: the run's provider")
     ap.add_argument("--mock-reply", help="file returned as the script by --provider mock")
     ap.add_argument("--script", help="read instructions from this file instead of the keyboard")
+    ap.add_argument("--instructor", default="human", help="who writes the instructions (recorded in chat.json)")
     a = ap.parse_args()
 
     run = Path(a.run).resolve()
@@ -65,20 +66,29 @@ def main():
 
     log_path = run / "chat.json"
     log = json.loads(log_path.read_text()) if log_path.exists() else {
-        "cell": cell, "model": meta["model"], "context_version": meta["context_version"],
+        "cell": cell, "model": meta["model"], "context_version": meta["context_version"], "instructor": a.instructor,
         "started": datetime.datetime.now().isoformat(timespec="seconds"),
         "prompts": {"placement": 0, "routing": 0, "other": 0}, "rounds": [], "usage": {"input_tokens": 0, "output_tokens": 0}}
     last = log["rounds"][-1]["check"] if log["rounds"] else meta.get("check")
     print(f"[{cell}] model={meta['model']} context={meta['context_version']} | start: {verdict(last)}")
 
-    lines = Path(a.script).read_text().splitlines() if a.script else None
+    # Script mode: instructions are separated by lines that contain only "---", so one instruction
+    # may span several lines and still counts as one prompt.
+    lines = None
+    if a.script:
+        blocks, cur = [], []
+        for ln in Path(a.script).read_text().splitlines():
+            if ln.strip() == "---":
+                blocks.append("\n".join(cur)); cur = []
+            else:
+                cur.append(ln)
+        blocks.append("\n".join(cur))
+        lines = [b.strip() for b in blocks if b.strip()]
     while True:
         if lines is not None:
             if not lines:
                 break
-            text = lines.pop(0).strip()
-            if not text:
-                continue
+            text = lines.pop(0)
             print(f"> {text}")
         else:
             try:

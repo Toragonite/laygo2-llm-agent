@@ -1,0 +1,4 @@
+date,cell,model,temperature,context_version,attempt,instructor,initial_result,fix_prompts_placement,fix_prompts_routing,prompts_placement_total,prompts_routing_total,paper_prompts_p/r,final_drc_errors,final_lvs,area_um2,passed,run_dir
+2026-09-29,inv_2x,gpt-4o-2024-05-13,default,c5af175,1,claude-fable-5-1,gen_fail,0,3,3,6,,0,match,11.2945,True,runs/llm/pilot/inv_2x_1
+2026-09-29,nand_2x,gpt-4o-2024-05-13,default,c5af175,1,claude-fable-5-1,gen_fail,1,7,4,10,3/3,0,match,20.3105,True,runs/llm/smoke/nand_2x_2
+2026-09-29,nor_2x,gpt-4o-2024-05-13,default,c5af175,1,claude-fable-5-1,gen_fail,0,6,3,9,3/2,0,match,20.3105,True,runs/llm/pilot/nor_2x_1b
