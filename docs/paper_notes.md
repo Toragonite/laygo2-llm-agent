@@ -1,7 +1,14 @@
 # paper_notes — arXiv:2408.07279 재현 노트
 
 ## 논문 요약
-- (Phase 3-1에서 작성)
+- 상세 분석(배경 지식 포함): https://claude.ai/artifact/84su77Bz4NraGJjRYQGVNp (비공개 아티팩트, 2026-09-29)
+- 방법: SPICE netlist → (LLM) netmap dict → 배치 명령 → net별 배선 명령 → 실행. 단계마다 규칙을 대화로 설명하고 사람이 결과를 보고 수정 지시 (Fig. 2–5). 모델은 ChatGPT-4 웹 채팅.
+- 결과: 13개 설계 모두 DRC/LVS 통과. 프롬프트 수 합계 배치 62, 배선 131 (Table II). NAND 3+3, NOR 3+2.
+  게이트 수준 배치 순서 최적화로 배선 길이 18.6% 감소 (Fig. 8). 32 Gb/s serializer post-layout 확인 (Fig. 11).
+- 저자 평가 (Table I): 상호작용 배치/배선 Good, 최적화 배치 Normal, 배선 Bad.
+- 빈칸: 프롬프트 로그 [16] 링크 만료(`repository_expired`, 2026-09-29 확인), 공정 미명시, 성공률·반복성·temperature 없음,
+  level shifter는 사람이 배치를 수동 조정, Fig. 2의 `laygo.place/route`는 공개판과 표기 다름
+  (2D `dsn.place(inst=[[...]])`는 공개판 cc6276a에도 있음, route는 grid·핀 변환을 직접 써야 함).
 
 ## 우리 선택 (논문에 없는 결정과 이유)
 
