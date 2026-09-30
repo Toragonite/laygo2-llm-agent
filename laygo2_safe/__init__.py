@@ -321,14 +321,17 @@ class Cell:
         if not self._placed:
             raise SafeError("connect() needs placed instances: call place_rows() first")
         grid = self.grid(g)
-        pts, pin_occs = [], []
+        pts, pin_occs, options = [], [], []
         for it in items:
             if isinstance(it, Point):
-                pts.append(it)
+                pts.append(it); options.append([it])
             elif isinstance(it, (tuple, list)) and len(it) in (2, 3) and _is_inst(it[0]):
                 inst, pn = it[0], it[1]
                 end = it[2] if len(it) == 3 else "left"
                 pts.append(self.pt(inst, pn, g, end))
+                # a spanning pin (S, RAIL) given without an end: the router may use either end
+                left, right = self.span(inst, pn, g)
+                options.append([self.pt(inst, pn, g, end)] if len(it) == 3 or np.array_equal(left, right) else [left, right])
                 occ = self._pin_occ[(inst.name, pn)]
                 if occ.net not in (None, net):
                     raise SafeError(f"{inst.name}.{pn} is already on net {occ.net!r}; it cannot also be on {net!r} "
@@ -371,6 +374,26 @@ class Cell:
                 for e in self._pin_extra.get((it[0].name, it[1]), []):
                     e.net = net
 
+        import itertools
+        combos = list(itertools.product(*options)) if options else [tuple(pts)]
+        first_err = None
+        for combo in combos:
+            try:
+                return self._route(net, list(combo), g, grid, prefer, pin_occs)
+            except SafeError as e:
+                if first_err is None:
+                    first_err = e
+        if g == "r12":
+            # no legal local-interconnect path (usually the 0.17 µm li1 rule next to a source bar):
+            # the same connection on metal1 (r23), which may also escape on metal2
+            try:
+                return self.connect(net, items, "r23", prefer)
+            except SafeError as e2:
+                raise SafeError(f"{first_err}\n  (also tried r23: {str(e2).splitlines()[0]})")
+        raise first_err
+
+    def _route(self, net, pts, g, grid, prefer, pin_occs):
+        """One routing attempt for fixed points: straight, tracks between, L/Z paths, outside tracks, metal2."""
         tried = []
         # 1. straight wire when every point shares a row or a column
         same_m, same_n = len({int(p[0]) for p in pts}) == 1, len({int(p[1]) for p in pts}) == 1
