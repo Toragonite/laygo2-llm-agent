@@ -43,7 +43,7 @@ UNIT_UM = 0.005                                    # one laygo2 unit is 5 nm in 
 # Minimum same-layer spacing (SKY130: li.3 = 0.17 µm, m1.2 = 0.14 µm, m2.2 = 0.14 µm), in units.
 LAYER_SPACING = {"locali": 34, "metal1": 28, "metal2": 28}
 # Half-widths used for zero-width pins and vias (pins and via cells are stored as centrelines).
-PIN_HALF = {"locali": 17, "metal1": 32, "metal2": 32}
+PIN_HALF = {"locali": 17, "metal1": 26, "metal2": 26}   # via pads stay inside the wire end (measured)
 SEARCH_RADIUS = 6                                  # tracks tried on each side in connect()
 __all__ = ["Cell", "Point", "SafeError", "GRID_NAMES"]
 
@@ -121,6 +121,7 @@ class Cell:
         self._placed = False
         self._occ = []                 # list of _Occ
         self._pin_occ = {}             # (inst name, pin) -> _Occ
+        self._pin_extra = {}           # (inst name, pin) -> further _Occ pieces of the same pin
         self._wire_net = {}            # id(Rect) -> net
 
     # ---- grids -----------------------------------------------------------------------------
@@ -225,12 +226,17 @@ class Cell:
             # the source strips 113 units toward the drain row; the pin stubs are 17 units tall
             d_box_y = sorted([y_d - sgn * 17, y_d + sgn * 105])
             s_box_y = sorted([y_s + sgn * 17, y_s - sgn * 113])
+            y_rail = int(inst.pins["RAIL"].bbox[0][1])
             for pn, pin in inst.pins.items():
                 layer, b = self._layer_of(pin), np.array(pin.bbox, dtype=int)
+                extra = []
                 if pn == "D":
                     box = [[b[0][0] - 34, d_box_y[0]], [b[1][0] + 34, d_box_y[1]]]
                 elif pn == "S":
-                    box = [[b[0][0] - 24, s_box_y[0]], [b[1][0] + 24, s_box_y[1]]]      # both strips, whole span
+                    # a li1 bar along the pin row, 0.225 µm past both contacts, plus the two contact strips
+                    box = [[b[0][0] - 45, y_s - 17], [b[1][0] + 45, y_s + 17]]
+                    for x in sorted({int(b[0][0]), int(b[1][0])}):
+                        extra.append([[x - 24, s_box_y[0]], [x + 24, s_box_y[1]]])
                 elif pn == "G":
                     box = [[b[0][0] - 40, b[0][1] - 17], [b[1][0] + 40, b[1][1] + 17]]
                 else:  # RAIL
@@ -238,14 +244,21 @@ class Cell:
                 occ = _Occ(layer, box, rail_net if pn == "RAIL" else None, f"{inst.name}.{pn}")
                 self._occ.append(occ)
                 self._pin_occ[(inst.name, pn)] = occ
+                self._pin_extra[(inst.name, pn)] = [_Occ(layer, e, None, f"{inst.name}.{pn}") for e in extra]
+                self._occ.extend(self._pin_extra[(inst.name, pn)])
             tie = inst._safe["tie"]
             if tie in ("S", "D"):
-                # the tied terminal has no pin, but its contacts are drawn and sit on the rail net
+                # the tied terminal has no pin, but its contact strips and the li1 straps down to the
+                # rail are drawn and sit on the rail net
                 b = np.array(shadow.pins[tie].bbox, dtype=int)
                 box_y = s_box_y if tie == "S" else d_box_y
+                y_pin = y_s if tie == "S" else y_d
+                strap_y = sorted([y_rail + (17 if y_rail < y_pin else -17), y_pin + (17 if y_rail < y_pin else -17)])
                 for x in sorted({int(b[0][0]), int(b[1][0])}):
                     self._occ.append(_Occ("locali", [[x - 24, box_y[0]], [x + 24, box_y[1]]], rail_net,
                                           f"{inst.name}.{tie} (tied to {rail_net})"))
+                    self._occ.append(_Occ("locali", [[x - 26, strap_y[0]], [x + 26, strap_y[1]]], rail_net,
+                                          f"{inst.name}.{tie} strap (tied to {rail_net})"))
 
     # ---- coordinates -----------------------------------------------------------------------
     def pt(self, inst, pin: str, g: str, end: str = "left") -> Point:
@@ -330,18 +343,32 @@ class Cell:
             else:
                 raise SafeError(f"connect() items must be (inst, pin[, end]) or Points, got {it!r}")
         if len(pts) == 1 and len(items) == 1 and isinstance(items[0], (tuple, list)) and len(items[0]) == 2:
-            # one spanning pin (RAIL, S): the wire runs along the whole pin
             inst, pn = items[0][0], items[0][1]
             left, right = self.span(inst, pn, g)
             if np.array_equal(left, right):
-                raise SafeError(f"connect({net!r}) with one pin needs a pin that spans several columns (S or RAIL); "
-                                f"{inst.name}.{pn} is a single point, give at least two pins")
+                # a single-point pin (a gate that is a port by itself): a short stub so that a port fits on it
+                for occ in pin_occs:
+                    occ.net = net
+                a = left
+                for dm, dn in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                    b = a.shifted(dm, dn)
+                    m_lo, m_hi, n_lo, n_hi = self._extent(grid)
+                    if not (m_lo <= b[0] <= m_hi and n_lo <= b[1] <= n_hi):
+                        continue
+                    objs = self._path_objs(grid, [a, b], pin_occs, pin_occs)
+                    if not self._conflicts(net, self._rects(g, objs)):
+                        return self._commit(g, objs, net, f"net {net} stub")
+                raise SafeError(f"connect({net!r}): no free stub next to {inst.name}.{pn}")
             pts = [left, right]
         if len(pts) < 2:
             raise SafeError("connect() needs at least two pins")
         pts = self._check_pts(g, *pts)
         for occ in pin_occs:
             occ.net = net
+        for it in items:
+            if isinstance(it, (tuple, list)) and _is_inst(it[0]):
+                for e in self._pin_extra.get((it[0].name, it[1]), []):
+                    e.net = net
 
         tried = []
         # 1. straight wire when every point shares a row or a column
@@ -358,21 +385,63 @@ class Cell:
         # 2. shared track nearby
         ms = sorted({int(p[0]) for p in pts}); ns = sorted({int(p[1]) for p in pts})
         m_lo, m_hi, n_lo, n_hi = self._extent(grid)
-        cand_v = [m for m in self._spread(ms, SEARCH_RADIUS) if m_lo <= m <= m_hi and m not in ms]
-        cand_h = [n for n in self._spread(ns, SEARCH_RADIUS) if n_lo <= n <= n_hi and n not in ns]
-        families = [("v", cand_v), ("h", cand_h)]
-        if prefer == "h" or (prefer is None and same_n):
-            families.reverse()
-        for kind, cands in families:
-            for idx in cands:
-                t = [idx, None] if kind == "v" else [None, idx]
-                stub_layer = self._stub_layer(grid, kind, pts)
-                via_pins = any(self._pin_layer(pin_occs, p) != stub_layer for p in pts)
-                objs = list(_flat(grid.route_via_track(mn=list(pts), track=t, via_tag=[True if via_pins else None, True])))
+        # tracks between the pins first (shortest stubs, least in the way), then outward
+        between_m = [m for m in range(min(ms) + 1, max(ms)) if m not in ms]
+        between_n = [n for n in range(min(ns) + 1, max(ns)) if n not in ns]
+        outside_m = [m for m in self._spread(ms, SEARCH_RADIUS) if m_lo <= m <= m_hi and m not in ms and m not in between_m]
+        outside_n = [n for n in self._spread(ns, SEARCH_RADIUS) if n_lo <= n <= n_hi and n not in ns and n not in between_n]
+
+        def try_tracks(cand_v, cand_h):
+            families = [("v", cand_v), ("h", cand_h)]
+            if prefer == "h" or (prefer is None and same_n):
+                families.reverse()
+            for kind, cands in families:
+                for idx in cands:
+                    t = [idx, None] if kind == "v" else [None, idx]
+                    stub_layer = self._stub_layer(grid, kind, pts)
+                    via_pins = any(self._pin_layer(pin_occs, p) != stub_layer for p in pts)
+                    objs = list(_flat(grid.route_via_track(mn=list(pts), track=t, via_tag=[True if via_pins else None, True])))
+                    bad = self._conflicts(net, self._rects(g, objs))
+                    if not bad:
+                        return self._commit(g, objs, net, f"net {net} track {kind}{idx}")
+                    tried.append((f"track {kind}={idx}", bad))
+            return None
+
+        # 2. shared track between the pins (short stubs)
+        w = try_tracks([m for m in between_m], [n for n in between_n])
+        if w is not None:
+            return w
+        # 3. L- and Z-shaped paths for two pins (short detours), then tracks outside the pins
+        if len(pts) == 2:
+            a, b = pts
+            first_bad = None
+            for path in self._zpaths(grid, a, b, SEARCH_RADIUS):
+                objs = self._path_objs(grid, path, pin_occs, pin_occs)
                 bad = self._conflicts(net, self._rects(g, objs))
                 if not bad:
-                    return self._commit(g, objs, net, f"net {net} track {kind}{idx}")
-                tried.append((f"track {kind}={idx}", bad))
+                    return self._commit(g, objs, net, f"net {net} path")
+                if first_bad is None:
+                    first_bad = f"{[p.tolist() for p in path]}: {bad[0]}"
+            tried.append(("L/Z paths", [first_bad or "no candidates"]))
+        w = try_tracks(outside_m, outside_n)
+        if w is not None:
+            return w
+        if len(pts) == 2:
+            a, b = pts
+            # 4. escape on metal2 (grid r34 shares r23's columns): up on metal1, across on metal2, down
+            if g == "r23":
+                for pairs in self._escape_paths(a, b):
+                    rects_all = [r for gg, o in pairs for r in self._rects(gg, [o])]
+                    if not self._conflicts(net, rects_all):
+                        return self._commit(None, pairs, net, f"net {net} metal2 path")
+                tried.append(("metal2 escape paths", ["all candidates blocked"]))
+        elif len(pts) > 2:
+            # more pins: join the first pin to each other pin, one path at a time
+            wires, first = [], pts[0]
+            for other in pts[1:]:
+                w = self.connect(net, [first, other], g, prefer)
+                wires.append(w)
+            return wires[-1]
         lines = [f"connect({net!r}) found no free path on {g} for {[p.tolist() for p in pts]}:"]
         for what, bad in tried[:6]:
             lines.append(f"  {what}: {bad[0]}")
@@ -460,12 +529,16 @@ class Cell:
 
     # ---- internals -------------------------------------------------------------------------
     def _commit(self, g, objs, net, owner, want_rect=True):
-        bad = self._conflicts(net, self._rects(g, objs)) if net is not None else []
+        """Add objects made on grid g (or a list of (grid, obj) pairs when g is None) to the design."""
+        pairs = objs if g is None else [(g, o) for o in objs]
+        rects_all = [r for gg, o in pairs for r in self._rects(gg, [o])]
+        bad = self._conflicts(net, rects_all) if net is not None else []
         if bad:
             raise SafeError(f"{owner} would conflict: " + "; ".join(bad[:3]))
+        objs = [o for _, o in pairs]
         for o in objs:
             self.dsn.append(o)
-        for layer, box in self._rects(g, objs):
+        for layer, box in rects_all:
             self._occ.append(_Occ(layer, box, net, owner))
         rects = [o for o in objs if isinstance(o, laygo2.object.physical.Rect)]
         if not want_rect:
@@ -528,6 +601,96 @@ class Cell:
         # stubs of a vertical track run horizontally on the row layer of each point (and vice versa)
         p = pts[0]
         return str(grid.hlayer[int(p[1])][0]) if kind == "v" else str(grid.vlayer[int(p[0])][0])
+
+    def _zpaths(self, grid, a, b, radius):
+        """Candidate 3-segment paths a -> (m1, na) -> (m1, nt) -> (m2, nt) -> (m2, nb) -> b, nearest first:
+        the middle run is on a free row nt (or, mirrored, a free column). Duplicate points are dropped."""
+        m_lo, m_hi, n_lo, n_hi = self._extent(grid)
+        ma, na, mb, nb = int(a[0]), int(a[1]), int(b[0]), int(b[1])
+        rows = [n for n in self._spread(sorted({na, nb}), radius) if n_lo <= n <= n_hi]
+        # L-shaped paths first (the middle run on one of the pin rows), then rows between, then outward
+        rows = [na, nb] + [n for n in range(min(na, nb) + 1, max(na, nb))] + rows
+        cols_a = [ma] + [m for m in self._spread([ma], 2) if m_lo <= m <= m_hi]
+        cols_b = [mb] + [m for m in self._spread([mb], 2) if m_lo <= m <= m_hi]
+        seen = set()
+        for nt in rows:
+            for m1 in cols_a:
+                for m2 in cols_b:
+                    pts = [(ma, na), (m1, na), (m1, nt), (m2, nt), (m2, nb), (mb, nb)]
+                    dedup = [pts[0]] + [q for i, q in enumerate(pts[1:], 1) if q != pts[i - 1]]
+                    key = tuple(dedup)
+                    if key in seen or len(dedup) < 2:
+                        continue
+                    seen.add(key)
+                    yield [Point(q, a.grid) for q in dedup]
+        # mirrored: middle run on a free column mt
+        cols = [ma, mb] + [m for m in range(min(ma, mb) + 1, max(ma, mb))] + [m for m in self._spread(sorted({ma, mb}), radius) if m_lo <= m <= m_hi]
+        rows_a = [na] + [n for n in self._spread([na], 2) if n_lo <= n <= n_hi]
+        rows_b = [nb] + [n for n in self._spread([nb], 2) if n_lo <= n <= n_hi]
+        for mt in cols:
+            for n1 in rows_a:
+                for n2 in rows_b:
+                    pts = [(ma, na), (ma, n1), (mt, n1), (mt, n2), (mb, n2), (mb, nb)]
+                    dedup = [pts[0]] + [q for i, q in enumerate(pts[1:], 1) if q != pts[i - 1]]
+                    key = tuple(dedup)
+                    if key in seen or len(dedup) < 2:
+                        continue
+                    seen.add(key)
+                    yield [Point(q, a.grid) for q in dedup]
+
+    def _escape_paths(self, a, b):
+        """Candidate paths a -> up on metal1 -> across on metal2 (r34 row nt) -> down on metal1 -> b, as
+        lists of (grid name, laygo2 object). Vias: li-metal1 at the pins (r23), metal1-metal2 at the corners
+        (r34). When the descent column differs from b's column, a short li stub on b's row finishes it."""
+        r23, r34 = self.grid("r23"), self.grid("r34")
+        a34, b34 = r34.mn(r23.xy(a)), r34.mn(r23.xy(b))
+        ma, mb, na34, nb34 = int(a34[0]), int(b34[0]), int(a34[1]), int(b34[1])
+        n_lo, n_hi = int(r34.mn(np.array(self._extent_xy()[0]))[1]), int(r34.mn(np.array(self._extent_xy()[1]))[1])
+        rows = [n for n in range(min(na34, nb34) + 1, max(na34, nb34))]
+        rows += [n for n in self._spread(sorted({na34, nb34}), SEARCH_RADIUS) if n_lo <= n <= n_hi and n not in rows]
+        m_lo, m_hi = int(r34.mn(np.array(self._extent_xy()[0]))[0]), int(r34.mn(np.array(self._extent_xy()[1]))[0])
+        cols_a = [ma] + [m for m in self._spread([ma], 2) if m_lo <= m <= m_hi]
+        cols_b = [mb] + [m for m in self._spread([mb], 2) if m_lo <= m <= m_hi]
+        for nt in rows:
+            if nt in (na34, nb34):
+                continue
+            for m1, m2 in ((m1, m2) for m1 in cols_a for m2 in cols_b):
+                pairs = []
+                if m1 == ma:
+                    pairs.append(("r23", r23.via(mn=a)))
+                else:   # step sideways on li first, then a via up to metal1
+                    p1 = Point([m1, int(a[1])], "r23")
+                    pairs += [("r23", o) for o in _flat(r23.route(mn=[a, p1], via_tag=[False, False]))]
+                    pairs.append(("r23", r23.via(mn=p1)))
+                path = [[m1, na34], [m1, nt], [m2, nt], [m2, nb34]]
+                objs = list(_flat(r34.route(mn=path, via_tag=[False, True, True, False])))
+                pairs += [("r34", o) for o in objs]
+                if m2 == mb:
+                    pairs.append(("r23", r23.via(mn=b)))
+                else:
+                    p2 = Point([m2, int(b[1])], "r23")
+                    pairs.append(("r23", r23.via(mn=p2)))
+                    pairs += [("r23", o) for o in _flat(r23.route(mn=[p2, b], via_tag=[False, False]))]
+                yield pairs
+
+    def _extent_xy(self):
+        xs = [i.bbox for i in self.instances.values()]
+        return np.min([b[0] for b in xs], axis=0), np.max([b[1] for b in xs], axis=0)
+
+    def _path_objs(self, grid, path, occ_a, occ_b):
+        """laygo2 objects for a multi-point path: consecutive points share a row or a column. Vias go
+        at every corner and at an end whose pin layer differs from the wire layer there."""
+        def seg_layer(p, q):
+            vertical = int(p[0]) == int(q[0])
+            return str(grid.vlayer[int(p[0])][0]) if vertical else str(grid.hlayer[int(p[1])][0])
+        n = len(path)
+        via_tag = [False] * n
+        pin_layer = occ_a[0].layer if occ_a else "locali"
+        via_tag[0] = seg_layer(path[0], path[1]) != pin_layer
+        via_tag[-1] = seg_layer(path[-2], path[-1]) != pin_layer
+        for i in range(1, n - 1):
+            via_tag[i] = seg_layer(path[i - 1], path[i]) != seg_layer(path[i], path[i + 1])
+        return list(_flat(grid.route(mn=list(path), via_tag=via_tag)))
 
     def _pin_layer(self, pin_occs, p):
         return pin_occs[0].layer if pin_occs else "locali"

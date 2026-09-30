@@ -84,7 +84,14 @@ if {[catch {
     set ndrc [drc list count total]
     if {$ndrc eq ""} { set ndrc 0 }
     set fh [open [file join $outdir drc.txt] w]
-    foreach {why boxes} [drc listall why] { puts $fh "[llength $boxes]\t$why" }
+    set s [cif scale out]
+    foreach {why boxes} [drc listall why] {
+        puts $fh "[llength $boxes]\t$why"
+        foreach b $boxes {
+            lassign $b x0 y0 x1 y1
+            puts $fh [format "    box %.3f %.3f %.3f %.3f um" [expr {$x0*$s}] [expr {$y0*$s}] [expr {$x1*$s}] [expr {$y1*$s}]]
+        }
+    }
     close $fh
     load $top
 } err]} { flow_fail drc $err }
