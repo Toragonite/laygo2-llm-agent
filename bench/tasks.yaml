@@ -16,3 +16,6 @@ tasks:
   - {id: tinv,  cell: tinv_2x,    netlist: ref/netlist/tinv.spice,  level: transistor, devices: 4}
   - {id: nand3, cell: nand3_2x,   netlist: ref/netlist/nand3.spice, level: transistor, devices: 6}
   - {id: mux2,  cell: mux2to1_2x, netlist: ref/netlist/mux2.spice,  level: transistor, devices: 10}
+  # stage 3 (2026-09-30): high-speed circuits from the paper's Fig. 9, goldens written from scratch (ref/golden/README_hs.md)
+  - {id: tspc,  cell: tspc_2x,    netlist: ref/netlist/tspc.spice,  level: transistor, devices: 7}
+  - {id: sal,   cell: sal_2x,     netlist: ref/netlist/sal.spice,   level: transistor, devices: 11}

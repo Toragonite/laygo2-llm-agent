@@ -1,0 +1,19 @@
+* sal_2x : strong-arm latch (arXiv:2408.07279 Fig. 9(d)), flat transistor-level reference
+* CLK=0: the four CLK pfets reset OUTP, OUTM, net2 and net3 to VDD, the tail nfet is off.
+* CLK=1: the tail turns on, the INP/INM pair discharges net2/net3 and the cross-coupled pair
+* (XM4-XM7) regenerates OUTP/OUTM. OUTM falls first when INP > INM.
+* W per finger as drawn by the laygo2 templates (nfet_01v8_lvt 0.5, pfet_01v8 1.0, L=0.15), m = fingers.
+.subckt sal_2x INP INM CLK OUTP OUTM VDD VSS
+XM1 net1 CLK VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM2 net2 INP net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM3 net3 INM net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM4 OUTM OUTP net2 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM5 OUTP OUTM net3 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM6 OUTM OUTP VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM7 OUTP OUTM VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM8 OUTM CLK VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM9 OUTP CLK VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM10 net2 CLK VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM11 net3 CLK VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+.ends
+.end
