@@ -1,0 +1,18 @@
+* mux2to1_2x : flat transistor-level LVS reference for ref/golden/mux2.py (nf=2)
+* 2-to-1 MUX: two tri-state inverters (I0 enabled by EN0=1/EN1=0, I1 by EN1=1/EN0=0)
+* driving a shared node, followed by an inverter to O. Same function as
+* `.subckt 2to1_mux` in third_party/laygo2_workspace_sky130/lvs_example/scan_cell_xschem.spice.
+* W per finger from the templates (nfet_01v8_lvt 0.5, pfet_01v8 1.0, L=0.15), 2 fingers -> m=2.
+.subckt mux2to1_2x I0 I1 EN0 EN1 O VDD VSS
+XM1 net1 I0 VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM2 net5 EN0 net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM3 net2 I0 VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM4 net5 EN1 net2 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM5 net3 I1 VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM6 net5 EN1 net3 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM7 net4 I1 VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM8 net5 EN0 net4 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM9 O net5 VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM10 O net5 VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+.ends
+.end

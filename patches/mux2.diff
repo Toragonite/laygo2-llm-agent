@@ -1,0 +1,73 @@
+--- a/third_party/laygo2_workspace_sky130/laygo2_example/logic_ver2/mux2to1.py
++++ b/ref/golden/mux2.py
+@@ -6,16 +6,16 @@
+ #                                                        #
+ ##########################################################
+ 
++import os
+ import numpy as np
+ import pprint
+ import laygo2
+ import laygo2.interface
+ import laygo2_tech as tech
+-from laygo2.object.netmap import NetMap
+ # Parameter definitions #############
+ # Design Variables
+ cell_type = 'mux2to1'
+-nf_list = [2]#,4,6]
++nf_list = [2]  # golden: single cell mux2to1_2x
+ 
+ # Templates
+ tpmos_name = 'pmos'
+@@ -29,17 +29,19 @@
+ 
+ # Design hierarchy
+ libname = 'logic_ver2'
+-ref_dir_template = './laygo2_example/logic_ver2/' #export this layout's information into the yaml in this dir 
+-ref_dir_MAG_exported = './laygo2_example/logic_ver2/TCL/'
+-yaml_import_path = './laygo2_example/logic_ver2/'
+-ref_dir_layout = './magic_layout'
++# Output contract: everything goes to $LAYOUT_OUT_DIR (default <repo>/runs/golden/mux2to1_2x/),
++# nothing is written into the laygo2_workspace_sky130 submodule.
++_repo_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
++out_dir = os.path.abspath(os.environ.get('LAYOUT_OUT_DIR', os.path.join(_repo_root, 'runs', 'golden', cell_type+'_2x')))
++os.makedirs(os.path.join(out_dir, libname), exist_ok=True)  # magic saves .mag into <out_dir>/<libname>/
+ # End of parameter definitions ######
+ 
+ # Generation start ##################
+ # 1. Load templates and grids.
+ print("Load templates")
+ templates = tech.load_templates()
+-tlogic = laygo2.interface.yaml.import_template(filename= yaml_import_path +'logic_ver2_templates.yaml')
++# (removed) import of logic_ver2_templates.yaml: the file does not exist in the pinned workspace
++# (the original generators create it by appending) and the imported templates are unused here.
+ tpmos, tnmos = templates[tpmos_name], templates[tnmos_name]
+ # tlib = laygo2.interface.yaml.import_template(filename=export_path+'logic_generated_templates.yaml') # Uncomment if you use the logic templates
+ # print(templates[tpmos_name], templates[tnmos_name], sep="\n") # Uncomment if you want to print templates
+@@ -180,19 +182,14 @@
+    print("Export design")
+    print("")
+    print("Export design")
+-   grid_table = dict()
+-   grid_table['metal1'] = r34
+-   grid_table['metal2'] = r34
+-   via_table = dict()
+-   via_table["via_M3_M4_0"] = ('metal1','metal2')
+-   via_table["via_M4_M5_0"] = ('metal2','metal3')
+-   nMap = NetMap.import_from_design(dsn, grid_table, via_table, orient_first="vertical", layer_names=['metal1','metal2'], net_ignore = ['VSS','VDD'], lib_ref = "laygo2_example/prj_db/library.yaml")
++   # (removed) NetMap export: laygo2.object.netmap is not in public laygo2 (LVS helper, not needed for layout)
+ 
+-   laygo2.interface.magic.export(lib, filename=ref_dir_MAG_exported +libname+'_'+cellname+'.tcl', cellname=None, libpath=ref_dir_layout, scale=0.5, reset_library=False, tech_library=tech.name)
++   # tech_library pinned to 'sky130A': tech.name is 'sky130B' and would silently load the sky130B tech in magic
++   laygo2.interface.magic.export(lib, filename=os.path.join(out_dir, cellname+'.tcl'), cellname=None, libpath=out_dir, scale=0.5, reset_library=False, tech_library='sky130A')
+    # Filename example: ./laygo2_generators_private/logic/skill/logic_generated_mux2to1_2x.il
+    
+-# 8. Export to a template database file.
+-   nat_temp = dsn.export_to_template(obstacle_layers=['metal1','metal2'])
+-   db = laygo2.interface.yaml.export_template(nat_temp, filename=ref_dir_template+libname+'_templates.yaml', mode='append')
++# 8. Export to a template database file (out_dir only; the shared submodule yaml is not touched).
++   nat_temp = dsn.export_to_template()  # obstacle_layers= not supported in pinned laygo2
++   db = laygo2.interface.yaml.export_template(nat_temp, filename=os.path.join(out_dir, libname+'_templates.yaml'), mode='append')
+    # Filename example: ./laygo2_generators_private/logic/logic_generated_templates.yaml
+    #laygo2.interface.yaml.export_design(dsn, filename=ref_dir_template+libname+'_templates.yaml',obs_layers=['metal1','metal2'], mode='append')
+\ No newline at end of file

@@ -1,0 +1,11 @@
+* tinv_2x : LVS reference netlist for the golden layout ref/golden/tinv.py (nf=2)
+* Tri-state inverter: O = not I when EN=1 (ENB=0), high-Z when EN=0 (ENB=1).
+* Topology from `.subckt tinv X Y VSS VDD EN ENB` in lvs_example/DFF_tinv.spice (X -> I, Y -> O).
+* W per finger as drawn by the laygo2 templates (not lvs_example's 1.2/1.6), m = fingers.
+.subckt tinv_2x I EN ENB O VDD VSS
+XM1 net1 I VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM2 O EN net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM3 net2 I VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM4 O ENB net2 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+.ends
+.end
