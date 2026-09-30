@@ -123,6 +123,7 @@ class Cell:
         self._pin_occ = {}             # (inst name, pin) -> _Occ
         self._pin_extra = {}           # (inst name, pin) -> further _Occ pieces of the same pin
         self._wire_net = {}            # id(Rect) -> net
+        self._label_pts = []           # physical centres of port labels already placed
 
     # ---- grids -----------------------------------------------------------------------------
     def grid(self, g: str):
@@ -459,8 +460,27 @@ class Cell:
         if wnet is not None and wnet != name:
             raise SafeError(f"port {name!r} is being put on a wire of net {wnet!r}")
         grid = self.grid(g)
-        self.ports[name] = self.dsn.pin(name=name, grid=grid, mn=grid.mn.bbox(wire))
-        return self.ports[name]
+        # laygo2's Magic export writes the port label at the centre of the pin box; two labels at the same
+        # point collide and one port is lost. Use a part of the wire whose centre is not already taken.
+        full = np.array(grid.mn.bbox(wire), dtype=int)
+        lo, hi = full[0], full[1]
+        axis = 1 if lo[0] == hi[0] else 0                        # 1: vertical wire, 0: horizontal
+        n = int(hi[axis] - lo[axis])
+        candidates = [full]
+        for frac in (0.25, 0.75, 0.5):
+            if n >= 2:
+                a, b = lo.copy(), hi.copy()
+                mid = lo[axis] + int(round(n * frac))
+                a[axis], b[axis] = mid, mid
+                candidates.append(np.array([a, b]))
+        for mn in candidates:
+            centre = tuple(np.round(np.mean(grid.xy(mn), axis=0)).astype(int).tolist()) if n else tuple(grid.xy(mn[0]).tolist())
+            if all(abs(centre[0] - c[0]) > 20 or abs(centre[1] - c[1]) > 20 for c in self._label_pts):
+                self._label_pts.append(centre)
+                self.ports[name] = self.dsn.pin(name=name, grid=grid, mn=mn)
+                return self.ports[name]
+        raise SafeError(f"port {name!r}: every label position on this wire is already used by another port; "
+                        f"put the port on another wire of the net")
 
     # ---- stage 3: connectivity check against the reference netlist --------------------------
     def check(self, netlist_path=None) -> list:
