@@ -364,6 +364,7 @@ class Cell:
                         return self._commit(g, objs, net, f"net {net} stub")
                 raise SafeError(f"connect({net!r}): no free stub next to {inst.name}.{pn}")
             pts = [left, right]
+            options = [[left], [right]]          # the wire runs along the whole pin
         if len(pts) < 2:
             raise SafeError("connect() needs at least two pins")
         pts = self._check_pts(g, *pts)
