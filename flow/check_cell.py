@@ -4,7 +4,7 @@
         [--ref-cell inv_2x] [--out runs/inv_2x]
 
 Stages (each writes its raw log into the out dir):
-  1. gen    generator -> <out>/<cell>.tcl        (cwd = workspace root, PYTHONPATH=., LAYOUT_OUT_DIR=<out>)
+  1. gen    generator -> <out>/<cell>.tcl        (cwd = workspace root, PYTHONPATH=.:<repo> so laygo2_safe imports, LAYOUT_OUT_DIR=<out>)
   2. magic  flow/magic_drc_extract.tcl -> DRC count, bbox area, <out>/<cell>.spice      (magic.log, drc.txt)
   3. lvs    flow/lvs.sh extracted vs reference netlist                                   (lvs.log)
 A stage that cannot run to completion stops the flow and leaves later fields null. DRC violations do not
@@ -78,7 +78,7 @@ def check_cell(gen, cell, ref, ref_cell, out):
     # 1. gen: same interpreter as `uv run` (the project .venv), run from the workspace root.
     t = time.time()
     rc, log = run("gen", [sys.executable, gen], WORKSPACE,
-                  {**env, "PYTHONPATH": ".", "LAYOUT_OUT_DIR": str(out)}, out / "gen.log")
+                  {**env, "PYTHONPATH": f".{os.pathsep}{REPO}", "LAYOUT_OUT_DIR": str(out)}, out / "gen.log")
     res["stage_s"]["gen"] = round(time.time() - t, 2)
     if rc != 0:
         res["gen_error"] = tail(log)
