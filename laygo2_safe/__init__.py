@@ -359,7 +359,7 @@ class Cell:
                     m_lo, m_hi, n_lo, n_hi = self._extent(grid)
                     if not (m_lo <= b[0] <= m_hi and n_lo <= b[1] <= n_hi):
                         continue
-                    objs = self._path_objs(grid, [a, b], pin_occs, pin_occs)
+                    objs = self._path_objs(grid, [a, b], pin_occs, [])
                     if not self._conflicts(net, self._rects(g, objs)):
                         return self._commit(g, objs, net, f"net {net} stub")
                 raise SafeError(f"connect({net!r}): no free stub next to {inst.name}.{pn}")
@@ -730,7 +730,8 @@ class Cell:
         via_tag = [False] * n
         pin_layer = occ_a[0].layer if occ_a else "locali"
         via_tag[0] = seg_layer(path[0], path[1]) != pin_layer
-        via_tag[-1] = seg_layer(path[-2], path[-1]) != pin_layer
+        # a via at the far end only when a pin is there (a free stub end would leave a lone li1 pad)
+        via_tag[-1] = bool(occ_b) and seg_layer(path[-2], path[-1]) != pin_layer
         for i in range(1, n - 1):
             via_tag[i] = seg_layer(path[i - 1], path[i]) != seg_layer(path[i], path[i + 1])
         return list(_flat(grid.route(mn=list(path), via_tag=via_tag)))
