@@ -48,7 +48,8 @@ def attempt_row(d: Path):
         "prompts_placement_total": m["prompts"]["placement"] + fix["placement"],
         "prompts_routing_total": m["prompts"]["routing"] + fix["routing"],
         "levels": " ".join(lv or "-" for lv in levels), "untagged_levels": sum(lv is None for lv in levels),
-        "excluded_above_L3": above, "states": " ".join(states),
+        "excluded_above_L3": above, "complete": pass_round is not None or len(rounds) >= 8,
+        "states": " ".join(states),
         **{f"label_{t}": lab[t] for t in TYPES},
         "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"], "run_dir": str(d.relative_to(REPO)),
     }
@@ -72,10 +73,10 @@ def main():
     summ = []
     for cell in sorted({r["cell"] for r in rows}):
         rs = [r for r in rows if r["cell"] == cell]
-        ok = [r for r in rs if not r["excluded_above_L3"]]
+        ok = [r for r in rs if not r["excluded_above_L3"] and r["complete"]]
         passed = [r for r in ok if r["passed"]]
         summ.append({
-            "cell": cell, "attempts": len(rs), "excluded_above_L3": len(rs) - len(ok),
+            "cell": cell, "attempts": len(rs), "excluded_or_incomplete": len(rs) - len(ok),
             "pass": len(passed), "pass_initial": sum(r["initial"] == "pass" for r in ok),
             "mean_fix_when_passed": round(sum(r["pass_round"] for r in passed) / len(passed), 2) if passed else "",
             "mean_prompts_p_when_passed": round(sum(r["prompts_placement_total"] for r in passed) / len(passed), 2) if passed else "",
