@@ -1,7 +1,7 @@
 """nor_2x with laygo2_safe connect()."""
 from laygo2_safe import Cell
 
-c = Cell("nor_2x")
+c = Cell("nor_2x", netlist="../../ref/netlist/nor.spice")
 n0 = c.nmos("MN0", nf=2, tie="S", ref="XM1")   # OUT-B-VSS
 n1 = c.nmos("MN1", nf=2, tie="S", ref="XM2")   # OUT-A-VSS
 p1 = c.pmos("MP1", nf=2, ref="XM3")            # OUT-A-net1
@@ -18,6 +18,6 @@ w_vdd = c.connect("VDD", [(p0, "RAIL"), (p1, "RAIL", "right")], "r12")
 
 for name, g, w in [("A", "r23", w_a), ("B", "r23", w_b), ("OUT", "r23", w_out), ("VSS", "r12", w_vss), ("VDD", "r12", w_vdd)]:
     c.port(name, g, w)
-problems = c.check("../../ref/netlist/nor.spice")
+problems = c.check()
 assert not problems, problems
 c.export()

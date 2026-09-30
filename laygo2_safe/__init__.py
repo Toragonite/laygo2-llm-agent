@@ -100,9 +100,16 @@ class Cell:
     """One layout cell. Wraps a laygo2 Library + Design, the SKY130 templates and grids, and an
     occupancy table used by connect() and check()."""
 
-    def __init__(self, name: str, libname: str = "logic_ver2", out_dir=None, rails=("VSS", "VDD")):
+    def __init__(self, name: str, libname: str = "logic_ver2", out_dir=None, rails=("VSS", "VDD"), netlist=None):
         self.name, self.libname = name, libname
         self.rails = {"nmos": rails[0], "pmos": rails[1]}
+        # With the reference netlist known up front, ref='XMn' lets nmos()/pmos() and connect() reject a
+        # wrong tie or a pin on the wrong net immediately, at the line that is wrong.
+        self.netlist_path = netlist
+        self._nl_ports, self._nl_devices = (None, None)
+        if netlist:
+            ports, devs = _parse_netlist(Path(netlist).read_text())
+            self._nl_ports, self._nl_devices = ports, {d["name"]: d for d in devs}
         self.out_dir = Path(out_dir or os.environ.get("LAYOUT_OUT_DIR", f"runs/golden/{name}")).resolve()
         self.templates = tech.load_templates()
         self._grids = tech.load_grids(templates=self.templates)
@@ -141,6 +148,23 @@ class Cell:
             raise SafeError(f"nf must be an even integer >= 2, got {nf!r}")
         if tie not in (None, "S", "D"):
             raise SafeError(f"tie must be 'S', 'D' or None, got {tie!r}")
+        if ref and self._nl_devices is not None:
+            dev = self._nl_devices.get(ref)
+            if dev is None:
+                raise SafeError(f"ref {ref!r} is not a device of the netlist; devices are {sorted(self._nl_devices)}")
+            want_kind = "nmos" if "nfet" in dev["model"] else "pmos"
+            if want_kind != kind:
+                raise SafeError(f"{ref} is a {want_kind} in the netlist; use c.{want_kind}() for {name}")
+            if dev["m"] != nf:
+                raise SafeError(f"{ref} has m={dev['m']} in the netlist, so use nf={dev['m']} for {name}")
+            rail = self.rails[kind]
+            for term in ("S", "D"):
+                on_rail = dev[term] == rail
+                if tie == term and not on_rail:
+                    raise SafeError(f"{name} ({ref}): tie={term!r} but the netlist puts its {term} on {dev[term]!r}, "
+                                    f"not on {rail}; use tie=None and connect it")
+                if on_rail and tie != term:
+                    raise SafeError(f"{name} ({ref}): its {term} is on {rail} in the netlist; use tie={term!r}")
         inst = self.templates[kind].generate(name=name, transform=transform, params={"nf": nf, "tie": tie})
         inst._safe = {"kind": kind, "nf": nf, "tie": tie, "ref": ref, "transform": transform}
         self.instances[name] = inst
@@ -295,9 +319,24 @@ class Cell:
                 if occ.net not in (None, net):
                     raise SafeError(f"{inst.name}.{pn} is already on net {occ.net!r}; it cannot also be on {net!r} "
                                     f"(check the netlist)")
+                ref = inst._safe.get("ref")
+                if ref and self._nl_devices is not None and pn in ("D", "G", "S"):
+                    want = self._nl_devices[ref][pn]
+                    if want != net:
+                        raise SafeError(f"{inst.name}.{pn} ({ref}.{pn}) is on net {want!r} in the netlist, not {net!r}")
+                if pn == "RAIL" and net != occ.net:
+                    raise SafeError(f"{inst.name}.RAIL is the {occ.net} rail; it cannot be connected as {net!r}")
                 pin_occs.append(occ)
             else:
                 raise SafeError(f"connect() items must be (inst, pin[, end]) or Points, got {it!r}")
+        if len(pts) == 1 and len(items) == 1 and isinstance(items[0], (tuple, list)) and len(items[0]) == 2:
+            # one spanning pin (RAIL, S): the wire runs along the whole pin
+            inst, pn = items[0][0], items[0][1]
+            left, right = self.span(inst, pn, g)
+            if np.array_equal(left, right):
+                raise SafeError(f"connect({net!r}) with one pin needs a pin that spans several columns (S or RAIL); "
+                                f"{inst.name}.{pn} is a single point, give at least two pins")
+            pts = [left, right]
         if len(pts) < 2:
             raise SafeError("connect() needs at least two pins")
         pts = self._check_pts(g, *pts)
@@ -355,9 +394,12 @@ class Cell:
         return self.ports[name]
 
     # ---- stage 3: connectivity check against the reference netlist --------------------------
-    def check(self, netlist_path) -> list:
+    def check(self, netlist_path=None) -> list:
         """Compare the nets the pins were connected to with the reference netlist. Returns a list
         of problems (empty = consistent). Instances need ref='XMn' to be matched."""
+        netlist_path = netlist_path or self.netlist_path
+        if not netlist_path:
+            raise SafeError("check() needs a netlist: Cell(..., netlist=path) or check(path)")
         ports, devices = _parse_netlist(Path(netlist_path).read_text())
         problems = []
         by_ref = {inst._safe["ref"]: inst for inst in self.instances.values() if inst._safe["ref"]}

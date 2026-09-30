@@ -25,11 +25,11 @@ placement, connections and ports where the comment says.
 from laygo2_safe import Cell
 
 cellname = '{{cell}}'
-c = Cell(cellname)
+c = Cell(cellname, netlist='{{netlist_path}}')
 
 # --- devices, placement, connections and ports go here ---
 
-for problem in c.check('{{netlist_path}}'):
+for problem in c.check():
     print('CHECK:', problem)
 c.export()
 ```

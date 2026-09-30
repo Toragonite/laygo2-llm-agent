@@ -11,7 +11,8 @@ p = c.pmos('MP0', nf=2, tie='S', ref='XM2')
   pmos is W = 1.0 µm, both L = 0.15 µm. So a device with multiplier `m` uses `nf = m`.
 - `tie`: `'S'` connects the source to the power rail inside the template, `'D'` connects the drain,
   `None` (default) connects neither. A tied terminal no longer has its own pin.
-- `ref`: the device's name in the netlist (`"ref"` of its dictionary). `check()` uses it.
+- `ref`: the device's name in the netlist (`"ref"` of its dictionary). Because the cell knows the netlist,
+  a wrong `tie` or `nf` for that device is refused immediately with the reason.
 - pmos instances are mirrored automatically so that their rail is at the top.
 - Pins of an instance: `'G'`, `'D'`, `'S'` (only if the source is not tied) and `'RAIL'` (its power rail
   segment). `c.pins(inst)` lists them.

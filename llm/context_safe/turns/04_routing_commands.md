@@ -22,7 +22,9 @@ c.port('A', 'r23', w)                                            # make that wir
 - A net with more than two pins can be built with several `connect()` calls of the same net name;
   each call needs at least two pins and must share at least one pin with an earlier call of that net
   (that shared pin is where the wires meet).
+- A rail that covers a single device can be made from its one `RAIL` pin: `c.connect('VSS', [(n, 'RAIL')], 'r12')`.
+- A pin whose net in the netlist differs from `net` is refused immediately (the message names the netlist net).
 - `port(name, grid, wire)`: marks a wire returned by `connect()` as the port `name`. `name` must be
   exactly a port name from the netlist, each port exactly once.
-- `check(netlist_path)` (already in the skeleton) reports every pin whose net differs from the netlist,
+- `check()` (already in the skeleton) reports every pin whose net differs from the netlist,
   every unconnected pin, wrong ties and missing ports.
