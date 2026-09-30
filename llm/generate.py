@@ -35,6 +35,28 @@ def strip_comments(netlist: str) -> str:
     return "\n".join(keep)
 
 
+def normalize_devices(netlist: str) -> str:
+    """Rename device instances to XM1, XM2, ... in order, so no task leaks layout instance names
+    (some reference netlists use the golden layout's names such as XMN0). LVS still uses the original file."""
+    out, i = [], 0
+    for ln in netlist.splitlines():
+        if ln[:1] in ("X", "x", "M", "m") and not ln.lower().startswith(".model"):
+            i += 1
+            ln = f"XM{i} " + ln.split(None, 1)[1]
+        out.append(ln)
+    return "\n".join(out)
+
+
+def tool_version() -> str:
+    """Last commit that touched the generation/judging code, plus '-dirty' if uncommitted."""
+    paths = ["llm/generate.py", "llm/chat.py", "flow"]
+    h = subprocess.run(["git", "log", "-1", "--format=%h", "--", *paths],
+                       cwd=REPO, capture_output=True, text=True).stdout.strip() or "none"
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", *paths],
+                           cwd=REPO, capture_output=True, text=True).stdout.strip()
+    return h + ("-dirty" if dirty else "")
+
+
 def render(text: str, values: dict) -> str:
     for key, val in values.items():
         text = text.replace("{{" + key + "}}", val)
@@ -116,7 +138,7 @@ def main():
     a = ap.parse_args()
 
     netlist_path = Path(a.netlist).resolve()
-    values = {"cell": a.cell, "netlist": strip_comments(netlist_path.read_text()),
+    values = {"cell": a.cell, "netlist": normalize_devices(strip_comments(netlist_path.read_text())),
               "task_placement_rules": a.placement_rules, "task_routing_rules": a.routing_rules}
     system = render((CONTEXT / "system.md").read_text(), values)
     turn_files = sorted((CONTEXT / "turns").glob("*.md"))
@@ -134,7 +156,8 @@ def main():
 
     meta = {"cell": a.cell, "netlist": str(netlist_path), "date": datetime.datetime.now().isoformat(timespec="seconds"),
             "provider": a.provider, "model": model, "temperature": a.temperature, "max_tokens": a.max_tokens,
-            "context_version": context_version(), "attempt": a.attempt,
+            "context_version": context_version(), "tool_version": tool_version(), "netlist_normalized": True,
+            "attempt": a.attempt,
             "placement_rules": a.placement_rules, "routing_rules": a.routing_rules,
             "prompts": {"placement": sum(1 for i in range(1, len(turns) + 1) if i in PLACEMENT_TURNS),
                         "routing": sum(1 for i in range(1, len(turns) + 1) if i not in PLACEMENT_TURNS)},

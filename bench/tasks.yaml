@@ -1,0 +1,18 @@
+# bench/tasks.yaml — baseline tasks. Conditions are user decisions (docs/protocol.md, docs/paper_notes.md).
+# Every task gives the LLM only the cell name and the reference netlist (comments stripped, device names
+# normalized to XM1..). The same netlist file is the LVS reference.
+defaults:
+  model: gpt-4o-2024-05-13
+  temperature: null          # provider default
+  attempts: 5
+  placement_rules: "(none)"
+  routing_rules: "(none)"
+  max_instructions: 8        # fix instructions per attempt, level <= L3
+
+tasks:
+  - {id: inv,   cell: inv_2x,     netlist: ref/netlist/inv.spice,   level: transistor, devices: 2}
+  - {id: nand,  cell: nand_2x,    netlist: ref/netlist/nand.spice,  level: transistor, devices: 4}
+  - {id: nor,   cell: nor_2x,     netlist: ref/netlist/nor.spice,   level: transistor, devices: 4}
+  - {id: tinv,  cell: tinv_2x,    netlist: ref/netlist/tinv.spice,  level: transistor, devices: 4}
+  - {id: nand3, cell: nand3_2x,   netlist: ref/netlist/nand3.spice, level: transistor, devices: 6}
+  - {id: mux2,  cell: mux2to1_2x, netlist: ref/netlist/mux2.spice,  level: transistor, devices: 10}
