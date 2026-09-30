@@ -1,0 +1,41 @@
+cell,attempt,date,model,temperature,context_version,tool_version,instructor,initial,passed,pass_round,n_fix,fix_placement,fix_routing,fix_other,prompts_placement_total,prompts_routing_total,levels,untagged_levels,excluded_above_L3,complete,states,label_A,label_B,label_C,label_D,label_E,input_tokens,output_tokens,cached_tokens,run_dir
+inv_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11425,555,7296,runs/bench/v2_20260930/inv_2x/a1
+inv_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11443,590,7424,runs/bench/v2_20260930/inv_2x/a2
+inv_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11369,531,7296,runs/bench/v2_20260930/inv_2x/a3
+inv_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11394,577,5760,runs/bench/v2_20260930/inv_2x/a4
+inv_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11428,558,7424,runs/bench/v2_20260930/inv_2x/a5
+mux2to1_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,0,1,0,0,0,21169,2992,17664,runs/bench/v2_20260930/mux2to1_2x/a1
+mux2to1_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,0,1,0,0,0,21209,3081,17792,runs/bench/v2_20260930/mux2to1_2x/a2
+mux2to1_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,0,1,0,0,0,21022,3221,14976,runs/bench/v2_20260930/mux2to1_2x/a3
+mux2to1_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,0,1,0,0,0,20892,2943,16256,runs/bench/v2_20260930/mux2to1_2x/a4
+mux2to1_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,0,1,0,0,0,21014,3042,17792,runs/bench/v2_20260930/mux2to1_2x/a5
+nand3_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,17637,1882,12800,runs/bench/v2_20260930/nand3_2x/a1
+nand3_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,17770,1990,12928,runs/bench/v2_20260930/nand3_2x/a2
+nand3_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,13744,1309,9216,runs/bench/v2_20260930/nand3_2x/a3
+nand3_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,17611,1879,13696,runs/bench/v2_20260930/nand3_2x/a4
+nand3_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins3b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,17745,1932,13952,runs/bench/v2_20260930/nand3_2x/a5
+nand_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins1b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,16159,1469,13184,runs/bench/v2_20260930/nand_2x/a1
+nand_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins1b),lvs,True,1,1,1,0,0,4,3,L3,0,False,True,lvs pass,0,0,1,0,0,16093,1440,11392,runs/bench/v2_20260930/nand_2x/a2
+nand_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins1b),lvs,True,2,2,0,2,0,3,5,L2 L3,0,False,True,lvs gen pass,1,1,0,0,0,20454,2027,13696,runs/bench/v2_20260930/nand_2x/a3
+nand_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins1b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,16057,1462,11520,runs/bench/v2_20260930/nand_2x/a4
+nand_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins1b),gen,True,1,1,0,1,0,3,4,L2,0,False,True,gen pass,1,1,0,0,0,16197,1463,9856,runs/bench/v2_20260930/nand_2x/a5
+nor_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins2b),gen,True,2,2,1,1,0,4,4,L2 L2,0,False,True,gen lvs pass,0,2,0,0,0,20455,1980,15744,runs/bench/v2_20260930/nor_2x/a1
+nor_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12514,896,6784,runs/bench/v2_20260930/nor_2x/a2
+nor_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins2b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,16161,1523,10112,runs/bench/v2_20260930/nor_2x/a3
+nor_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins2b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,16199,1454,12928,runs/bench/v2_20260930/nor_2x/a4
+nor_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12519,929,6528,runs/bench/v2_20260930/nor_2x/a5
+sal_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),gen,True,5,5,3,2,0,6,5,L2 L2 L2 L2 L3,0,False,True,gen lvs gen gen gen pass,2,2,1,0,0,53337,7234,49280,runs/bench/v2_20260930/sal_2x/a1
+sal_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),lvs,True,1,1,0,1,0,3,4,L2,0,False,True,lvs pass,0,1,0,0,0,21631,3117,18944,runs/bench/v2_20260930/sal_2x/a2
+sal_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),lvs,True,3,3,1,2,0,4,5,L2 L2 L3,0,False,True,lvs gen gen pass,1,1,1,0,0,35854,5292,32384,runs/bench/v2_20260930/sal_2x/a3
+sal_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),lvs,True,2,2,0,2,0,3,5,L2 L2,0,False,True,lvs gen pass,0,1,1,0,0,28204,4195,25088,runs/bench/v2_20260930/sal_2x/a4
+sal_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),lvs,True,3,3,1,2,0,4,5,L2 L2 L3,0,False,True,lvs gen gen pass,1,1,1,0,0,36423,5528,33024,runs/bench/v2_20260930/sal_2x/a5
+tinv_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12718,1013,8448,runs/bench/v2_20260930/tinv_2x/a1
+tinv_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12667,992,8448,runs/bench/v2_20260930/tinv_2x/a2
+tinv_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12919,1095,8576,runs/bench/v2_20260930/tinv_2x/a3
+tinv_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12674,980,8448,runs/bench/v2_20260930/tinv_2x/a4
+tinv_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12592,949,8320,runs/bench/v2_20260930/tinv_2x/a5
+tspc_2x,1,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,1,1,0,0,0,18477,2102,14592,runs/bench/v2_20260930/tspc_2x/a1
+tspc_2x,2,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),gen,True,2,2,1,1,0,4,4,L2 L2,0,False,True,gen lvs pass,0,2,0,0,0,23447,2845,18304,runs/bench/v2_20260930/tspc_2x/a2
+tspc_2x,3,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),gen,True,1,1,1,0,0,4,3,L2,0,False,True,gen pass,0,1,0,0,0,18484,2131,12800,runs/bench/v2_20260930/tspc_2x/a3
+tspc_2x,4,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),gen,True,2,2,1,1,0,4,4,L2 L2,0,False,True,gen lvs pass,0,2,0,0,0,23267,2825,19584,runs/bench/v2_20260930/tspc_2x/a4
+tspc_2x,5,2026-09-30,gpt-4o-2024-08-06,default,dcf82e2,bc2dd1a,claude-fable-5-1 (ins4b),gen,True,2,2,1,1,0,4,4,L2 L2,0,False,True,gen lvs pass,0,2,0,0,0,23234,2861,18944,runs/bench/v2_20260930/tspc_2x/a5
