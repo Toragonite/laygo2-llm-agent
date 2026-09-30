@@ -26,8 +26,10 @@ c.place_rows([n_a, n_b], [p_a, p_b])
 
 ## Basic placement rules (shared by CMOS logic cells)
 1. NMOS devices go in the bottom row, PMOS devices in the row directly above.
-2. A device whose source is on `VSS` (nfet) or `VDD` (pfet) uses `tie='S'`. If its drain is on the
-   rail instead, use `tie='D'`.
+2. Decide `tie` for each device separately from its own dictionary, never for all devices at once:
+   `tie='S'` only if that device's `"S"` value is `VSS` (nfet) or `VDD` (pfet); `tie='D'` only if its
+   `"D"` value is the rail; otherwise `tie=None`. Most cells mix tied and untied devices (for example
+   a series stack has one device on the rail and the others on internal nets).
 3. Alignment strategy: an nfet and a pfet driven by the same gate net go in the same column (same
    index in the two lists), so their gates can be joined by one vertical wire.
 4. Devices connected in series (sharing an internal net that is not a port) sit next to each other in the
