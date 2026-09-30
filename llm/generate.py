@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-CONTEXT = REPO / "llm" / "context"
+CONTEXT = REPO / "llm" / "context"        # default; --context selects another directory (e.g. llm/context_safe)
 # Turns 1-3 teach and perform placement, 4-6 routing (see llm/context/README.md).
 PLACEMENT_TURNS = {1, 2, 3}
 
@@ -66,11 +66,12 @@ def render(text: str, values: dict) -> str:
     return text
 
 
-def context_version() -> str:
-    """Last commit that touched llm/context, plus '-dirty' if it has uncommitted changes."""
-    h = subprocess.run(["git", "log", "-1", "--format=%h", "--", "llm/context"],
+def context_version(context_dir=None) -> str:
+    """Last commit that touched the context directory, plus '-dirty' if it has uncommitted changes."""
+    rel = str((context_dir or CONTEXT).resolve().relative_to(REPO))
+    h = subprocess.run(["git", "log", "-1", "--format=%h", "--", rel],
                        cwd=REPO, capture_output=True, text=True).stdout.strip() or "none"
-    dirty = subprocess.run(["git", "status", "--porcelain", "--", "llm/context"],
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", rel],
                            cwd=REPO, capture_output=True, text=True).stdout.strip()
     return h + ("-dirty" if dirty else "")
 
@@ -142,13 +143,16 @@ def main():
     ap.add_argument("--mock-reply", help="file returned as the final script by --provider mock")
     ap.add_argument("--out", help="run directory (default runs/llm/<cell>/<timestamp>_<model>/)")
     ap.add_argument("--dry-run", action="store_true", help="write the rendered prompts and stop")
+    ap.add_argument("--context", default=str(CONTEXT), help="context directory (system.md + turns/)")
     a = ap.parse_args()
+    context = Path(a.context).resolve()
 
     netlist_path = Path(a.netlist).resolve()
     values = {"cell": a.cell, "netlist": normalize_devices(strip_comments(netlist_path.read_text())),
+              "netlist_path": str(netlist_path),
               "task_placement_rules": a.placement_rules, "task_routing_rules": a.routing_rules}
-    system = render((CONTEXT / "system.md").read_text(), values)
-    turn_files = sorted((CONTEXT / "turns").glob("*.md"))
+    system = render((context / "system.md").read_text(), values)
+    turn_files = sorted((context / "turns").glob("*.md"))
     turns = [render(f.read_text(), values) for f in turn_files]
 
     model = a.model or ("mock" if a.provider == "mock" else None)
@@ -163,7 +167,8 @@ def main():
 
     meta = {"cell": a.cell, "netlist": str(netlist_path), "date": datetime.datetime.now().isoformat(timespec="seconds"),
             "provider": a.provider, "model": model, "temperature": a.temperature, "max_tokens": a.max_tokens,
-            "context_version": context_version(), "tool_version": tool_version(), "netlist_normalized": True,
+            "context_dir": str(context.relative_to(REPO)), "context_version": context_version(context),
+            "tool_version": tool_version(), "netlist_normalized": True,
             "attempt": a.attempt,
             "placement_rules": a.placement_rules, "routing_rules": a.routing_rules,
             "prompts": {"placement": sum(1 for i in range(1, len(turns) + 1) if i in PLACEMENT_TURNS),

@@ -28,16 +28,20 @@ def main():
     ap.add_argument("--only", help="comma-separated task ids")
     ap.add_argument("--jobs", type=int, default=1, help="attempts run in parallel (the 30k TPM limit allows ~1)")
     ap.add_argument("--dry-run", action="store_true", help="pass --dry-run to generate.py (no API calls)")
+    ap.add_argument("--context", default=None, help="context directory passed to generate.py (default: tasks.yaml or llm/context)")
+    ap.add_argument("--attempts", type=int, default=None, help="override attempts per task")
     a = ap.parse_args()
 
     spec = yaml.safe_load(Path(a.tasks).read_text())
     d = spec["defaults"]
     only = set(a.only.split(",")) if a.only else None
+    context = a.context or d.get("context")
+    attempts = a.attempts or d["attempts"]
     jobs = []
     for t in spec["tasks"]:
         if only and t["id"] not in only:
             continue
-        for i in range(1, d["attempts"] + 1):
+        for i in range(1, attempts + 1):
             out = REPO / "runs" / "bench" / a.tag / t["cell"] / f"a{i}"
             if (out / "meta.json").exists() and not a.dry_run:
                 prev = json.loads((out / "meta.json").read_text())
@@ -49,6 +53,8 @@ def main():
                    "--out", str(out)]
             if d.get("temperature") is not None:
                 cmd += ["--temperature", str(d["temperature"])]
+            if context:
+                cmd += ["--context", str(REPO / context)]
             if a.dry_run:
                 cmd.append("--dry-run")
             jobs.append((t["cell"], i, cmd))
