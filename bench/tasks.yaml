@@ -2,7 +2,9 @@
 # Every task gives the LLM only the cell name and the reference netlist (comments stripped, device names
 # normalized to XM1..). The same netlist file is the LVS reference.
 defaults:
-  model: gpt-4o-2024-05-13
+  # baseline_20260930 used gpt-4o-2024-05-13 (no prompt caching). From 2026-09-30 on, new runs use
+  # gpt-4o-2024-08-06: half the price and the unchanged conversation prefix is billed at the cached rate.
+  model: gpt-4o-2024-08-06
   temperature: null          # provider default
   attempts: 5
   placement_rules: "(none)"

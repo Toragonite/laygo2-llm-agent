@@ -146,7 +146,7 @@ def main():
         messages.append({"role": "assistant", "content": reply})
         (run / f"chat_{k}_llm.md").write_text(reply)
         for key in usage:
-            log["usage"][key] += usage[key]
+            log["usage"][key] = log["usage"].get(key, 0) + usage[key]
         log["prompts"][kind] += 1
 
         code = extract_python(reply)

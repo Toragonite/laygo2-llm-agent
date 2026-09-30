@@ -35,7 +35,7 @@ def attempt_row(d: Path):
     pass_round = next((k for k, s in enumerate(states) if s == "pass"), None)
     levels = [r.get("level") for r in rounds]
     lab = Counter(t for ts in c.get("labels", {}).values() for t in ts)
-    usage = {k: m["usage"].get(k, 0) + c.get("usage", {}).get(k, 0) for k in ("input_tokens", "output_tokens")}
+    usage = {k: m["usage"].get(k, 0) + c.get("usage", {}).get(k, 0) for k in ("input_tokens", "output_tokens", "cached_tokens")}
     fix = Counter(r["kind"] for r in rounds)
     above = any(lv in ("L4",) for lv in levels)
     return {
@@ -51,7 +51,8 @@ def attempt_row(d: Path):
         "excluded_above_L3": above, "complete": pass_round is not None or len(rounds) >= 8,
         "states": " ".join(states),
         **{f"label_{t}": lab[t] for t in TYPES},
-        "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"], "run_dir": str(d.relative_to(REPO)),
+        "input_tokens": usage["input_tokens"], "output_tokens": usage["output_tokens"], "cached_tokens": usage["cached_tokens"],
+        "run_dir": str(d.relative_to(REPO)),
     }
 
 

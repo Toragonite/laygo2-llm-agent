@@ -98,7 +98,12 @@ class OpenAIChat:
             kw["temperature"] = self.temperature
         resp = self.client.chat.completions.create(**kw)
         text = resp.choices[0].message.content or ""
-        return text, {"input_tokens": resp.usage.prompt_tokens, "output_tokens": resp.usage.completion_tokens}
+        # Prompt caching (gpt-4o-2024-08-06 and later): the unchanged prefix of a multi-turn conversation is
+        # billed at the cached rate. cached_tokens is part of prompt_tokens, recorded here to check hits.
+        det = getattr(resp.usage, "prompt_tokens_details", None)
+        cached = getattr(det, "cached_tokens", 0) or 0
+        return text, {"input_tokens": resp.usage.prompt_tokens, "output_tokens": resp.usage.completion_tokens,
+                      "cached_tokens": cached}
 
 
 class MockChat:
@@ -110,8 +115,8 @@ class MockChat:
     def send(self, system, messages):
         self.calls += 1
         if self.n_turns is None or self.calls == self.n_turns:
-            return "```python\n" + self.code + "```", {"input_tokens": 0, "output_tokens": 0}
-        return "OK", {"input_tokens": 0, "output_tokens": 0}
+            return "```python\n" + self.code + "```", {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0}
+        return "OK", {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0}
 
 
 def run_check(gen, cell, netlist, out):
@@ -163,7 +168,7 @@ def main():
             "placement_rules": a.placement_rules, "routing_rules": a.routing_rules,
             "prompts": {"placement": sum(1 for i in range(1, len(turns) + 1) if i in PLACEMENT_TURNS),
                         "routing": sum(1 for i in range(1, len(turns) + 1) if i not in PLACEMENT_TURNS)},
-            "turn_files": [f.name for f in turn_files], "usage": {"input_tokens": 0, "output_tokens": 0},
+            "turn_files": [f.name for f in turn_files], "usage": {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0},
             "llm_error": None, "code_found": None, "check": None, "run_dir": str(run)}
 
     def save():
@@ -195,7 +200,7 @@ def main():
         messages.append({"role": "assistant", "content": reply})
         (run / f"turn_{i}_llm.md").write_text(reply)
         for k in usage:
-            meta["usage"][k] += usage[k]
+            meta["usage"][k] = meta["usage"].get(k, 0) + usage[k]
     meta["llm_s"] = round(time.time() - t0, 2)
     (run / "transcript.json").write_text(json.dumps({"system": system, "messages": messages},
                                                     indent=2, ensure_ascii=False) + "\n")
