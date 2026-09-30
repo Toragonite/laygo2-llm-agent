@@ -6,7 +6,8 @@ added afterwards per attempt with llm/chat.py, following docs/protocol.md.
 Usage:
   uv run python llm/run_bench.py --tag 20260930 [--only inv,nand] [--jobs 3] [--dry-run]
 Output: runs/bench/<tag>/<cell>/a<i>/ (one generate.py run directory per attempt).
-An attempt whose meta.json already exists is skipped, so an interrupted run can be resumed.
+An attempt that already finished is skipped, so an interrupted run can be resumed; an attempt that
+ended with an API error (llm_error, e.g. a rate limit) is run again from scratch.
 """
 import argparse
 import json
@@ -25,7 +26,7 @@ def main():
     ap.add_argument("--tasks", default=str(REPO / "bench" / "tasks.yaml"))
     ap.add_argument("--tag", required=True, help="name of this benchmark run, e.g. a date")
     ap.add_argument("--only", help="comma-separated task ids")
-    ap.add_argument("--jobs", type=int, default=3, help="attempts run in parallel")
+    ap.add_argument("--jobs", type=int, default=1, help="attempts run in parallel (the 30k TPM limit allows ~1)")
     ap.add_argument("--dry-run", action="store_true", help="pass --dry-run to generate.py (no API calls)")
     a = ap.parse_args()
 
@@ -39,7 +40,9 @@ def main():
         for i in range(1, d["attempts"] + 1):
             out = REPO / "runs" / "bench" / a.tag / t["cell"] / f"a{i}"
             if (out / "meta.json").exists() and not a.dry_run:
-                continue
+                prev = json.loads((out / "meta.json").read_text())
+                if not prev.get("llm_error"):
+                    continue  # finished attempt; an API error (e.g. rate limit) is re-run
             cmd = [sys.executable, str(REPO / "llm" / "generate.py"), "--cell", t["cell"],
                    "--netlist", str(REPO / t["netlist"]), "--model", d["model"], "--attempt", str(i),
                    "--placement-rules", d["placement_rules"], "--routing-rules", d["routing_rules"],

@@ -86,7 +86,9 @@ class OpenAIChat:
         import openai
         from dotenv import load_dotenv
         load_dotenv(REPO / ".env")
-        self.client = openai.OpenAI()
+        # The account's rate limit is 30k tokens/min for gpt-4o: let the SDK wait and retry on 429
+        # (it honours the retry-after header) instead of failing the attempt.
+        self.client = openai.OpenAI(max_retries=10)
         self.model, self.temperature, self.max_tokens = model, temperature, max_tokens
 
     def send(self, system, messages):
