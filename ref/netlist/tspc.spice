@@ -1,0 +1,14 @@
+* tspc_2x : ratioed TSPC flip-flop (arXiv:2408.07279 Fig. 9(e)), flat transistor-level reference
+* Stage 1 (XM1-XM3): IN inverter with a CLK nfet in the pull-down stack.
+* Stage 2 (XM4-XM5) and stage 3 (XM6-XM7): ratioed stages, one device on CLK and one on the previous stage.
+* W per finger as drawn by the laygo2 templates (nfet_01v8_lvt 0.5, pfet_01v8 1.0, L=0.15), m = fingers.
+.subckt tspc_2x IN CLK OUT VDD VSS
+XM1 net1 IN VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM2 net1 CLK net2 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM3 net2 IN VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM4 net3 net1 VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM5 net3 CLK VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM6 OUT CLK VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM7 OUT net3 VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+.ends
+.end

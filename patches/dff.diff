@@ -1,0 +1,82 @@
+--- a/third_party/laygo2_workspace_sky130/laygo2_example/logic_ver2/dff_ver2.py
++++ b/ref/golden/dff.py
+@@ -6,16 +6,17 @@
+ ###########################################
+ 
+ 
++import os
+ import numpy as np
+ import pprint
+ import laygo2
+ import laygo2.interface
+ import laygo2_tech as tech
+-from laygo2.object.netmap import NetMap
++import _subcells  # ref/golden/_subcells.py: builds inv_2x, tinv_2x, tinv_small_1x in the same library
+ # Parameter definitions #############
+ # Variables
+ cell_type = 'dff'
+-nf_list = [2]#,4]
++nf_list = [2]  # golden: single cell dff_2x
+ # Templates
+ tpmos_name = 'pmos'
+ tnmos_name = 'nmos'
+@@ -26,9 +27,11 @@
+ r34_name = 'routing_34_basic'
+ # Design hierarchy
+ libname = 'logic_ver2'
+-ref_dir_template = './laygo2_example/logic_ver2/' #export this layout's information into the yaml in this dir 
+-ref_dir_MAG_exported = './laygo2_example/logic_ver2/TCL/'
+-ref_dir_layout = './magic_layout'
++# Output contract: everything goes to $LAYOUT_OUT_DIR (default <repo>/runs/golden/dff_2x/),
++# nothing is written into the laygo2_workspace_sky130 submodule.
++_repo_root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
++out_dir = os.path.abspath(os.environ.get('LAYOUT_OUT_DIR', os.path.join(_repo_root, 'runs', 'golden', cell_type+'_2x')))
++os.makedirs(os.path.join(out_dir, libname), exist_ok=True)  # magic saves .mag into <out_dir>/<libname>/
+ # End of parameter definitions ######
+ 
+ # Generation start ##################
+@@ -36,7 +39,9 @@
+ print("Load templates")
+ templates = tech.load_templates()
+ tpmos, tnmos = templates[tpmos_name], templates[tnmos_name]
+-tlib = laygo2.interface.yaml.import_template(filename=ref_dir_template+'logic_ver2_templates.yaml')
++# (removed) import of logic_ver2_templates.yaml: the file does not exist in the pinned workspace
++# (the primitive generators create it by appending into the submodule). The sub-cell templates
++# come from _subcells.build() below instead.
+ #print(templates[tpmos_name], templates[tnmos_name], sep="\n")
+ 
+ print("Load grids")
+@@ -51,6 +56,9 @@
+ # 2. Create a design hierarchy
+    lib = laygo2.object.database.Library(name=libname)
+    dsn = laygo2.object.database.Design(name=cellname, libname=libname)
++   # Sub-cells first: magic.export writes designs in library order, and the top cell's getcell
++   # must find them already in memory.
++   tlib = _subcells.build(lib, templates, grids, nf)
+    lib.append(dsn)
+ 
+ # 3. Create istances.
+@@ -144,16 +152,12 @@
+    
+    # 7. Export to physical database.
+    print("Export design")
+-   grid_table = dict()
+-   grid_table['metal1'] = r34
+-   grid_table['metal2'] = r34
+-   via_table = dict()
+-   via_table["via_M3_M4_0"] = ('metal1','metal2')
+-   via_table["via_M4_M5_0"] = ('metal2','metal3')
+-   nMap = NetMap.import_from_design(dsn, grid_table, via_table, orient_first="vertical", layer_names=['metal1','metal2'], net_ignore = ['VSS','VDD'], lib_ref = "laygo2_example/prj_db/library.yaml")
++   # (removed) NetMap export: laygo2.object.netmap is not in public laygo2 (LVS helper, not needed for layout)
+    # Uncomment for BAG export
+-   laygo2.interface.magic.export(lib, filename=ref_dir_MAG_exported +libname+'_'+cellname+'.tcl', cellname=None, libpath=ref_dir_layout, scale=0.5, reset_library=False, tech_library=tech.name)
+-   # 8. Export to a template database file.
+-   nat_temp = dsn.export_to_template(metal_table=grid_table, net_ignore = ['VSS','VDD'])
+-   laygo2.interface.yaml.export_template(nat_temp, filename=ref_dir_template+libname+'_templates.yaml', mode='append')
++   # cellname=None: one TCL with every design in lib (inv_2x, tinv_2x, tinv_small_1x, then the dff)
++   # tech_library fixed to 'sky130A': tech.name is 'sky130B', which is also installed under ~/pdk
++   laygo2.interface.magic.export(lib, filename=os.path.join(out_dir, cellname+'.tcl'), cellname=None, libpath=out_dir, scale=0.5, reset_library=False, tech_library='sky130A')
++   # 8. Export to a template database file (out_dir only; the shared submodule yaml is not touched).
++   nat_temp = dsn.export_to_template()  # metal_table=/net_ignore= not supported in pinned laygo2
++   laygo2.interface.yaml.export_template(nat_temp, filename=os.path.join(out_dir, libname+'_templates.yaml'), mode='append')
+    # laygo2.interface.yaml.export_design(dsn, filename=ref_dir_template+libname+'_templates.yaml',obs_layers=['metal1','metal2'], mode='append')

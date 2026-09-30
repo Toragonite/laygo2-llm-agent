@@ -1,0 +1,22 @@
+* latch_2ck_2x : LVS reference netlist for the golden layout ref/golden/latch.py (nf=2)
+* Latch with two clock phases: transparent when CLK=1/CLKB=0 (O follows I), holds when CLK=0/CLKB=1.
+* Topology from `.subckt latch IN CLK CLKB VSS VDD OUT` in lvs_example/byte_dff.spice
+*   (IN -> I, OUT -> O), flattened to transistors:
+*   tinv_2x       (XM1-XM4):  I -> FB,  EN=CLK,  ENB=CLKB  (forward path, nf=2)
+*   tinv_small_1x (XM5-XM8):  O -> FB,  EN=CLKB, ENB=CLK   (keeper, 1-finger series stacks)
+*   inv_2x        (XM9-XM10): FB -> O                      (nf=2)
+* W per finger as drawn by the laygo2 templates (not lvs_example's 1.2/2.4), m = fingers.
+*   The 2-stack microtemplates of tinv_small draw one finger per transistor (W 0.5/1.0) -> m=1.
+.subckt latch_2ck_2x I CLK CLKB O VDD VSS
+XM1 net1 I VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM2 FB CLK net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM3 net2 I VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM4 FB CLKB net2 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM5 net3 O VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=1
+XM6 FB CLKB net3 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=1
+XM7 net4 O VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=1
+XM8 FB CLK net4 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=1
+XM9 O FB VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM10 O FB VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+.ends
+.end

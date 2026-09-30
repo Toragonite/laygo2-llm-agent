@@ -1,0 +1,41 @@
+* dff_2x : LVS reference netlist for the golden layout ref/golden/dff.py (nf=2)
+* Positive-edge D flip-flop = clock buffer + master latch + slave latch (O takes I at CLK rising edge).
+* Topology from `.subckt DFF VDD VSS I O CLK` in lvs_example/byte_dff.spice (two `latch` + two `inv`),
+* flattened to transistors. Net names follow the netmap of logic_ver2/dff_ver2.py:
+*   inv0        (XM1-XM2):   CLK   -> ICLKB
+*   inv1        (XM3-XM4):   ICLKB -> ICLK
+*   master: tinv0       (XM5-XM8):   I   -> FLCH, EN=ICLKB, ENB=ICLK   (transparent while CLK=0)
+*           tinv_small0 (XM9-XM12):  LCH -> FLCH, EN=ICLK,  ENB=ICLKB  (keeper)
+*           inv2        (XM13-XM14): FLCH -> LCH
+*   slave:  tinv1       (XM15-XM18): LCH -> BLCH, EN=ICLK,  ENB=ICLKB  (transparent while CLK=1)
+*           tinv_small1 (XM19-XM22): O   -> BLCH, EN=ICLKB, ENB=ICLK   (keeper)
+*           inv3        (XM23-XM24): BLCH -> O
+* W per finger as drawn by the laygo2 templates (not lvs_example's 1.2/2.4), m = fingers:
+*   inv_2x / tinv_2x nf=2 -> m=2; tinv_small_1x 2-stack microtemplates, one finger each -> m=1.
+.subckt dff_2x I CLK O VDD VSS
+XM1 ICLKB CLK VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM2 ICLKB CLK VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM3 ICLK ICLKB VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM4 ICLK ICLKB VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM5 net1 I VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM6 FLCH ICLKB net1 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM7 net2 I VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM8 FLCH ICLK net2 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM9 net3 LCH VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=1
+XM10 FLCH ICLK net3 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=1
+XM11 net4 LCH VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=1
+XM12 FLCH ICLKB net4 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=1
+XM13 LCH FLCH VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM14 LCH FLCH VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM15 net5 LCH VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM16 BLCH ICLK net5 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM17 net6 LCH VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM18 BLCH ICLKB net6 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+XM19 net7 O VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=1
+XM20 BLCH ICLKB net7 VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=1
+XM21 net8 O VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=1
+XM22 BLCH ICLK net8 VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=1
+XM23 O BLCH VSS VSS sky130_fd_pr__nfet_01v8_lvt L=0.15 W=0.5 nf=1 m=2
+XM24 O BLCH VDD VDD sky130_fd_pr__pfet_01v8 L=0.15 W=1.0 nf=1 m=2
+.ends
+.end
