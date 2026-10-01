@@ -8,12 +8,19 @@ For each attempt made by llm/generate.py, while the last script fails and rounds
 Rounds are recorded in chat.json exactly like llm/chat.py (kind "other", level "L1", instructor
 "auto-feedback-v1"), so llm/summarize.py aggregates them the same way.
 
+Feedback variants (--feedback):
+  v1  tool output only
+  v2  v1 plus a list of every problem seen so far (open / fixed / back again)  -> no effect (v3b)
+  v3  v1 plus, only when the failure state flipped (crash -> LVS mismatch or back), the unified diff
+      between the previous script and the latest one, so the fix for the new problem keeps the old fix
+
 Usage:
   uv run python llm/selfheal.py --tag v3_selfheal [--max-rounds 8] [--only inv,nand]
   uv run python llm/selfheal.py --run runs/bench/<tag>/<cell>/a1
 """
 import argparse
 import datetime
+import difflib
 import glob
 import json
 import re
@@ -51,6 +58,49 @@ def facts_of(chk, check_dir: Path) -> list:
 
 def passed(chk):
     return bool(chk) and chk.get("gen_ok") and chk.get("drc_errors") == 0 and bool(chk.get("lvs_match"))
+
+
+def state_of(chk) -> str:
+    """The failure state of one check: crash / drc / lvs / pass."""
+    if passed(chk):
+        return "pass"
+    if not chk or chk.get("error") or not chk.get("gen_ok"):
+        return "crash"
+    if chk.get("drc_errors"):
+        return "drc"
+    return "lvs"
+
+
+STATE_WORDS = {"crash": "a crash while running", "drc": "DRC errors", "lvs": "an LVS mismatch", "pass": "a pass"}
+DIFF_MAX_LINES = 120
+
+
+def feedback_v3(chk, check_dir: Path, run: Path, k: int, prev_chk):
+    """v1 message plus, only when the failure state flipped between the last two scripts, the unified
+    diff between them. Returns (text, diff_included). Script of round j is gen_j.py (gen.py for j = 0);
+    at round k the last script is gen_{k-1} and the previous one gen_{k-2}."""
+    base = feedback(chk, check_dir)
+    if k < 2 or prev_chk is None:
+        return base, False
+    s_prev, s_last = state_of(prev_chk), state_of(chk)
+    if s_prev == s_last:
+        return base, False
+    prev_path = run / ("gen.py" if k - 2 == 0 else f"gen_{k - 2}.py")
+    last_path = run / f"gen_{k - 1}.py"
+    if not prev_path.exists() or not last_path.exists():
+        return base, False
+    diff = list(difflib.unified_diff(prev_path.read_text().splitlines(), last_path.read_text().splitlines(),
+                                     fromfile="previous script", tofile="latest script", lineterm="", n=1))
+    if len(diff) > DIFF_MAX_LINES:
+        diff = diff[:DIFF_MAX_LINES] + [f"... ({len(diff) - DIFF_MAX_LINES} more diff lines)"]
+    head = base.rsplit("\n\n", 1)[0]
+    text = (head + f"\n\nYour latest script changed the failure from {STATE_WORDS[s_prev]} to {STATE_WORDS[s_last]}. "
+            "This is what you changed between the previous script and the latest one:\n```diff\n"
+            + "\n".join(diff) + "\n```\n"
+            "Do not undo what the previous script already had right, and keep the change that fixed the earlier problem; "
+            "fix the current problems on top of that.\n\n"
+            "Fix the problems and output the complete corrected script.")
+    return text, True
 
 
 def feedback(chk, check_dir: Path) -> str:
@@ -130,7 +180,15 @@ def heal(run: Path, max_rounds: int) -> dict:
             memory.append({"fact": f, "first_seen": 0, "last_seen": 0})
     while not passed(last) and len(log["rounds"]) < max_rounds:
         k = len(log["rounds"]) + 1
-        text = feedback_v2(last, last_dir, memory, k) if FEEDBACK == "v2" else feedback(last, last_dir)
+        diff_included = False
+        if FEEDBACK == "v2":
+            text = feedback_v2(last, last_dir, memory, k)
+        elif FEEDBACK == "v3":
+            rounds = log["rounds"]
+            prev = rounds[-2]["check"] if len(rounds) >= 2 else (meta.get("check") if len(rounds) == 1 else None)
+            text, diff_included = feedback_v3(last, last_dir, run, k, prev)
+        else:
+            text = feedback(last, last_dir)
         messages.append({"role": "user", "content": text})
         (run / f"auto_{k}_user.md").write_text(text)
         t0 = time.time()
@@ -153,6 +211,7 @@ def heal(run: Path, max_rounds: int) -> dict:
             chk = run_check(gen, cell, netlist, run / f"check_{k}")
             last, last_dir = chk, run / f"check_{k}"
         log["rounds"].append({"k": k, "kind": "other", "level": "L1", "auto": True, "instruction": text,
+                              "diff_included": diff_included,
                               "code_found": code is not None, "llm_s": round(time.time() - t0, 2), "check": chk})
         log["final"] = {"verdict": "pass" if passed(last) else "fail", "passed": passed(last)}
         log_path.write_text(json.dumps(log, indent=2, ensure_ascii=False) + "\n")
@@ -171,7 +230,8 @@ def main():
     ap.add_argument("--run", help="one attempt directory")
     ap.add_argument("--only", help="comma-separated cell names (with --tag)")
     ap.add_argument("--max-rounds", type=int, default=8)
-    ap.add_argument("--feedback", choices=["v1", "v2"], default="v1", help="v1: tool output only; v2: plus a history of problems")
+    ap.add_argument("--feedback", choices=["v1", "v2", "v3"], default="v1",
+                    help="v1: tool output only; v2: plus a history of problems; v3: plus the script diff when the failure state flips")
     a = ap.parse_args()
     global FEEDBACK
     FEEDBACK = a.feedback
