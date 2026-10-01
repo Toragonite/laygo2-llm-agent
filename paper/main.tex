@@ -5,11 +5,15 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \usepackage{amsmath}
 \usepackage{url}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 \usepackage{microtype}
+\usepackage{float}
+\usepackage{listings}
+\lstset{language=Python,basicstyle=\ttfamily\scriptsize,columns=fullflexible,keepspaces=true,breaklines=true,frame=single,framerule=0.3pt,xleftmargin=3pt,xrightmargin=3pt,showstringspaces=false,commentstyle=\color{gray},keywordstyle=\bfseries}
 \graphicspath{{figures/}}
 \newcommand{\um}{\,$\mu$m}
 \newcommand{\code}[1]{\texttt{#1}}
@@ -33,13 +37,13 @@ layout generation, large language models, LAYGO2, SKY130, design automation, ben
 \section{Introduction}
 Custom cell layout---logic standard cells and high-speed mixed-signal primitives---is still largely manual. Generator-based frameworks such as BAG and LAYGO/LAYGO2~\cite{bag2,laygo,laygo2} let designers describe a layout as Python code over process-portable templates and abstract grids, which raises productivity but moves the burden to writing that code. You et al.~\cite{you2024} asked whether an LLM can write the generator from natural language, with the designer steering interactively, and reported thirteen DRC/LVS-clean designs, from NAND gates to a 32\,Gb/s serializer, using ChatGPT-4.
 
-Their report leaves questions open for anyone who wants to build on it: the prompt logs are no longer available, the process node and tools are not stated, each design is reported once (no success rate or variance), and the amount of human help is summarized only as a prompt count. This work makes the setting reproducible and measurable, and then uses the measurement to find and fix the bottleneck. Our contributions are:
+Their report leaves questions open for anyone who wants to build on it: the prompt logs are no longer available, the process node and tools are not stated, each design is reported once (no success rate or variance), and the amount of human help is summarized only as a prompt count. This work makes the setting reproducible and measurable, and then uses the measurement to find and fix the bottleneck. The improvement followed two hypotheses in a fixed order: that the library surface, not the model, is the bottleneck and should be repaired first; and that once every failure is a precise tool message, feeding it back can replace the designer. Our contributions are:
 \begin{enumerate}
 \item an open-source reproduction: public laygo2 (pinned), SKY130, Magic DRC and netgen LVS wrapped in a one-command judge that was first validated with human-written reference layouts, including three verification pitfalls that would otherwise produce false passes or false failures (\S\ref{sec:judge});
 \item a measurement protocol for interactive LLM layout generation: four specificity levels for the human's instructions, a five-type failure taxonomy applied to every failing round, a cap on instructions, and contamination rules (\S\ref{sec:protocol});
 \item a baseline on eight cells $\times$ five attempts (\S\ref{sec:baseline}) and a failure analysis showing that interface friction, not circuit knowledge, dominates (\S\ref{sec:failures});
-\item \code{laygo2\_safe}, a thin layer over laygo2 that removes that friction without changing laygo2's architecture (\S\ref{sec:layer}), validated by rewriting all eight reference layouts on it;
-\item measurements with the layer under human instructions and under purely automatic feedback (\S\ref{sec:results}), a negative result for one feedback variant, and quality metrics beyond pass/fail (\S\ref{sec:quality}).
+\item \code{laygo2\_safe}, a thin layer over laygo2 designed from those labels: one return type per function, grid-aware points, an occupancy table calibrated on the reference layouts, a \code{connect()} primitive with a fixed search order, and netlist-aware checks that fail at the offending line (\S\ref{sec:layer}); it keeps laygo2's architecture and is validated by rewriting all eight reference layouts on it;
+\item a test of the second hypothesis, that precise tool messages make the human unnecessary: measurements under human instructions and under purely automatic feedback (\S\ref{sec:results}), an analysis of how the automatic loop fails and a negative result for a memory-based remedy (\S\ref{sec:selfheal}), and quality metrics beyond pass/fail (\S\ref{sec:quality}).
 \end{enumerate}
 
 \section{Background}
@@ -55,7 +59,7 @@ Table~\ref{tab:stack} lists the components. Later laygo2 versions are incompatib
 \caption{Software stack.}
 \label{tab:stack}
 \centering\footnotesize
-\begin{tabular}{@{}p{0.27\columnwidth}p{0.66\columnwidth}@{}}
+\begin{tabular}{@{}L{0.27\columnwidth}L{0.66\columnwidth}@{}}
 \toprule
 component & version \\
 \midrule
@@ -91,7 +95,7 @@ The context reconstructs the paper's Figs.~2--4 as six user turns (netlist $\rig
 \caption{Measurement protocol.}
 \label{tab:protocol}
 \centering\footnotesize
-\begin{tabular}{@{}p{0.19\columnwidth}p{0.71\columnwidth}@{}}
+\begin{tabular}{@{}L{0.19\columnwidth}L{0.71\columnwidth}@{}}
 \toprule
 instruction levels & L1 tool output only; L2 diagnosis; L3 what to change and which API/rule; L4 coordinates, column numbers, routing plans. Baseline allows $\leq$\,L3. \\
 failure types & A API misuse; B circuit-reading error (ties, memberships, omissions); C routing conflict/short; D geometry misunderstanding; E spacing. Multiple labels per failing round. \\
@@ -162,28 +166,148 @@ The labels say where to intervene: A, C and D are properties of the tool surface
 
 \section{\code{laygo2\_safe}: A Thin, Net-Aware Layer}
 \label{sec:layer}
-We kept laygo2's architecture (templates, grids, design database, exporters) and the pinned submodule untouched, and added a layer in the repository that an LLM programs against (Table~\ref{tab:layer}). The cell keeps an \emph{occupancy table} of every pin, wire and via as physical rectangles per layer tagged with a net; pin footprints were measured on the reference layouts (drain strip 0.24\um, source bar $\pm$0.225\um{} past the contacts, gate strap 0.4\um, tied-source straps, via pads $\pm$0.13\um). \code{connect(net, pins, grid)} tries a straight wire, then shared tracks between the pins, then L- and Z-shaped paths, then tracks outside, then an escape on metal2 (grid r34 shares r23's columns); both ends of spanning pins are tried, and a connection with no legal li1 path falls back to metal1. Any geometry that touches another net or is closer than the layer's rule (li1 0.17\um, metal1 0.14\um) is rejected with a message naming the obstacle. Given the reference netlist, \code{nmos(\ldots, ref='XM1')} refuses a wrong tie or finger count at that line, \code{connect()} refuses a pin whose netlist net differs, and \code{check()} lists unconnected pins, wrong nets, missing ports and nets left in separate pieces.
+The improvement phase tested two hypotheses, in a fixed order. First, that the bottleneck is the library surface, so the interface should be repaired before anything is done on the LLM side; the labels of \S\ref{sec:failures} motivate this, since A, C and D are properties of the tool. Second, that once the library reports every failure as a precise, actionable message, a loop that feeds that message back can replace the designer. This section describes the layer built for the first hypothesis; \S\ref{sec:selfheal} tests the second.
 
-Validation is twofold: 23 guardrail self-tests, and all eight reference cells rewritten on the layer using only \code{connect()} (no coordinates, no track indices) pass DRC\,0 / LVS match; the MUX becomes 16\,\% smaller than the human reference because no spacer cells are needed. The six context turns were rewritten for the new API with the same structure and no example code; the tie rule was reworded to ``decide per device from its own dictionary''.
+The layer keeps laygo2 as it is: templates, grids, the design database and the Magic exporter are used unchanged, the pinned submodule is not modified, and the layer (about 850 lines of Python in the repository, \code{from laygo2\_safe import Cell}) sits between the generator script and laygo2. The design goal was not a new layout engine but a surface on which the baseline's failure modes cannot be expressed, or are rejected with a message that names the fix.
+
+\subsection{From Failure Labels to Requirements}
+Table~\ref{tab:layer} maps each baseline mechanism of \S\ref{sec:failures} to the rule the layer enforces and to the code that enforces it. Three decisions shaped everything else. (i) \emph{One kind of return value per function}: \code{connect()} always returns one wire, \code{rails()} always returns two, a point always carries the grid it was taken on and is refused on another grid. (ii) \emph{The cell knows the netlist}: the reference netlist is given to the \code{Cell} constructor, so the layer can check ties, finger counts and nets at the line that states them instead of after extraction. (iii) \emph{The cell knows what is occupied}: every pin, wire and via is recorded as physical rectangles with a net, so a short or a spacing violation is detected when the wire is requested, by the layer, instead of by Magic or netgen minutes later.
 
 \begin{table}[t]
-\caption{Baseline failures and the layer's response.}
+\caption{Baseline failure mechanisms and the layer's response.}
 \label{tab:layer}
 \centering\footnotesize
-\begin{tabular}{@{}p{0.34\columnwidth}p{0.57\columnwidth}@{}}
+\begin{tabular}{@{}L{0.08\columnwidth}L{0.34\columnwidth}L{0.49\columnwidth}@{}}
 \toprule
-baseline failure & layer behaviour \\
+label & baseline mechanism & rule in the layer (implementation) \\
 \midrule
-return-value shapes, grid mixing, pins vs.\ instances & one kind of return value per function; points remember their grid and are refused on another; inputs validated with messages that say what to do instead \\
-rectangle fill between misaligned points & \code{wire()} refuses points not on one track; paths are drawn by \code{connect()} \\
-shorts and spacing & occupancy table; rejection of touching or too-close geometry \\
-finding a free track & \code{connect()} search: straight, between-pin tracks, L/Z paths, outside tracks, metal2 escape \\
-errors found only at LVS & netlist-aware refusals at the offending line; \code{check()} \\
-ragged placement lists, unplaced devices & \code{place\_rows()} accepts rows of different length and refuses an unplaced device \\
-rails, port labels & \code{rails()}; \code{port()} avoids Magic's label collision when two pin boxes share a centre \\
+A & \code{route()} returns a wire or a list; \code{route\_via\_track()} returns a list whose last element is the track & every function returns one kind of object; \code{connect()} returns the main wire that \code{port()} needs \\
+A & coordinates of one grid used on another; placement helpers applied to pins & \code{Point} remembers its grid and is refused on another; pins are named, never indexed \\
+A & ragged 2-D placement list raises a numpy error; a created device left unplaced & \code{place\_rows(nfets, pfets)} accepts rows of different length and refuses an unplaced device by name \\
+D & \code{route()} between points on different rows and columns fills the rectangle between them & \code{wire()} refuses two points not on one track; paths are only drawn by \code{connect()} \\
+C & output wire on the drain column shorts the gate pin in the same column; ``pin\,$\pm$\,1'' tracks land on a neighbour's tied source & occupancy table of physical rectangles per layer with a net; any wire that touches another net or is within the layer's spacing is rejected and the obstacle is named \\
+C, E & the model has to choose a free track & \code{connect()} searches tracks and paths in a fixed order (\S\ref{sec:connect}) and takes the first legal one \\
+B & \code{tie='S'} applied regardless of the dictionary; wrong net on a pin; pin dropped & \code{nmos(\ldots, ref='XM1')} refuses a tie or finger count that contradicts the netlist; \code{connect()} refuses a pin whose netlist net differs; \code{check()} lists unconnected pins, split nets and missing ports \\
+-- & two port labels at one centre; Magic keeps one & \code{port()} places the label on a sub-segment of the wire that no other pin centre shares \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{The API}
+Fig.~\ref{fig:code} is the complete NAND2 generator on the layer, 23 lines against 123 for the workspace's original generator. The script contains no coordinates, no track indices, no via flags and no grid conversions; the only geometric decisions left to the author are which grid a net uses (\code{r12} inside a row, \code{r23} between the rows) and, optionally, which end of a spanning pin (\code{'left'}/\code{'right'}). This is also the entire vocabulary the LLM is taught in the rewritten context: \code{Cell}, \code{nmos}/\code{pmos}, \code{place\_rows}, \code{rails}, \code{connect}, \code{port}, \code{check}, \code{export}.
+
+\begin{figure}[t]
+\begin{lstlisting}
+from laygo2_safe import Cell
+
+c = Cell("nand_2x", netlist="nand.spice")
+n1 = c.nmos("MN1", nf=2, ref="XM1")           # OUT-A-net1
+n0 = c.nmos("MN0", nf=2, tie="S", ref="XM2")  # net1-B-VSS
+p0 = c.pmos("MP0", nf=2, tie="S", ref="XM3")  # OUT-B-VDD
+p1 = c.pmos("MP1", nf=2, tie="S", ref="XM4")  # OUT-A-VDD
+c.place_rows([n0, n1], [p0, p1])
+
+c.connect("OUT", [(p0, "D", "right"), (p1, "D")], "r12")
+w_out = c.connect("OUT", [(n1, "D", "right"),
+                          (p1, "D", "right")], "r23")
+w_a = c.connect("A", [(n1, "G"), (p1, "G")], "r23")
+w_b = c.connect("B", [(n0, "G"), (p0, "G")], "r23")
+c.connect("net1", [(n0, "D"), (n1, "S")], "r12")
+w_vss = c.connect("VSS", [(n0, "RAIL"),
+                          (n1, "RAIL", "right")], "r12")
+w_vdd = c.connect("VDD", [(p0, "RAIL"),
+                          (p1, "RAIL", "right")], "r12")
+
+for name, g, w in [("A", "r23", w_a), ("B", "r23", w_b),
+        ("OUT", "r23", w_out), ("VSS", "r12", w_vss),
+        ("VDD", "r12", w_vdd)]:
+    c.port(name, g, w)
+problems = c.check()
+assert not problems, problems
+c.export()
+\end{lstlisting}
+\caption{The reference NAND2 generator on \code{laygo2\_safe} (DRC\,0, LVS match; netlist path shortened). The original generator for the same cell needs 123 lines, including per-net grid conversions, track indices and via flags.}
+\label{fig:code}
+\end{figure}
+
+\subsection{Occupancy Table and Its Calibration}
+\label{sec:occ}
+laygo2 exposes pins as centrelines on abstract grids, not as the metal the template actually draws, so the layer cannot ask the framework how much space a pin takes. The footprints were therefore measured on the flattened CIF of the human-written reference cells (Magic crashes when asked to write a template cell's CIF on its own) and are stored in grid units of 5\,nm (Table~\ref{tab:footprint}). Each placed instance registers: its drain and source contact strips, the li1 bar along the source row, the gate strap, its rail segment (on the rail net), and, for a tied terminal, the contact strips and the li1 straps down to the rail, all on the rail net. Wires and vias added by \code{connect()} are registered with their net as they are committed. A candidate wire is legal when none of its rectangles overlaps a rectangle of another net on the same layer and none is closer than the layer's minimum spacing; rectangles of the same net may touch.
+
+\begin{table}[t]
+\caption{Pin footprints and spacing used by the occupancy table (1 unit = 5\,nm; measured on the reference cells).}
+\label{tab:footprint}
+\centering\footnotesize
+\begin{tabular}{@{}L{0.30\columnwidth}L{0.50\columnwidth}l@{}}
+\toprule
+item & extent & layer \\
+\midrule
+drain contact strip & $\pm$34 across; 105 toward the source row & li1 \\
+source contact strips & $\pm$24 across; 113 toward the drain row & li1 \\
+source bar along the pin row & $\pm$45 (0.225\um) past both contacts & li1 \\
+gate strap & $\pm$40 laterally & li1 \\
+rail segment & $\pm$26 vertically & metal1 \\
+tied-terminal straps & $\pm$26 across, pin row to rail & li1 \\
+via pads & $\pm$17 (li1), $\pm$26 (metal1, metal2) & -- \\
+minimum spacing & 34 (li1), 28 (metal1), 28 (metal2) & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The calibration was done against the reference layouts: the layer had to accept every wire of the eight human-written cells and reject each negative control. The first model over-approximated the tied-source strips up to the drain row and rejected the reference NAND's output wire as touching VDD; the measured strip lengths (105 and 113 units) resolved it. The source bar's lateral extent (0.225\um{} past the contacts) was found from a NAND3 li1 spacing violation that the first model had let through, and the via pad size from metal1 violations next to pins. Each such correction is a case where the human-written layouts served as ground truth for the layer, in the same way they had served as ground truth for the judge.
+
+\subsection{\code{connect()}: Search Order}
+\label{sec:connect}
+\code{connect(net, pins, grid)} first validates: every pin's netlist net must equal \code{net}; a pin already assigned to another net is refused; a \code{RAIL} pin can only carry its own rail net. Pins that span several columns (\code{S}, \code{RAIL}) and are given without an end contribute both ends as candidates, and the Cartesian product of end choices is tried in order. For one choice of points the router tries, in this order, and commits the first legal candidate:
+\begin{enumerate}
+\item a straight wire, if all points share a row or a column (vias where the pin layer differs from the wire layer);
+\item a shared track \emph{between} the pins (shortest stubs), vertical family first unless the points share a row;
+\item for two pins, L- and Z-shaped three-segment paths: the middle run on one of the two pin rows (an L), then on rows between the pins, then on rows up to six tracks outside; the same mirrored with a column;
+\item shared tracks outside the pins, up to six tracks away on either side;
+\item for two pins on \code{r23}, an escape on metal2: a via up at the first pin, metal1 to a free row of grid \code{r34} (which shares \code{r23}'s columns), metal2 across, metal1 down and, if the descent column differs, a short li1 stub to the second pin;
+\item for more than two pins, the first pin is joined to each other pin by a recursive two-pin call.
+\end{enumerate}
+A call on \code{r12} with no legal li1 path (typically the 0.17\um{} li1 rule next to a source bar) is retried on \code{r23}, which makes the metal2 escape available. If everything fails, the error lists the first six candidates with the rectangle that blocked each, and ends with ``try another grid, a different end of the pin, or move the instances apart''. Vias are added only at ends that are pins; an earlier version drew a via at the free end of a single-pin stub and produced an isolated li1 pad (rule li.6).
+
+\subsection{Netlist-Aware Checks and Messages}
+The checks run at three moments, each as early as the information allows:
+\begin{itemize}
+\item \textbf{At device creation.} With \code{ref='XM1'}, \code{nmos()} compares kind, multiplier and tie with the netlist. Example message: \code{MN0 (XM1): its S is on VSS in the netlist; use tie='S'}; or \code{XM3 is a pmos in the netlist; use c.pmos() for MN2}.
+\item \textbf{At connection.} \code{MN1.G (XM1.G) is on net 'A' in the netlist, not 'B'}; \code{MP0.D is already on net 'OUT'; it cannot also be on 'net1' (check the netlist)}.
+\item \textbf{At \code{check()}}, before export: unconnected pins (\code{MP2.D is not connected (netlist: OUTM)}), wrong nets, wrong ties, ports missing or not in the netlist, and nets left in separate pieces, found by a union--find over the occupancy rectangles of the net (same-layer overlap or a via joins two pieces): \code{net OUTP is in 2 separate pieces: MN3.G, MP0.G | MN4.D, MP1.D (connect them with a shared pin)}.
+\end{itemize}
+Every message names the instance, the terminal, the netlist fact and the action. This is deliberate: in the v2 runs, 19 of the 22 human instructions were these messages relayed with one sentence of explanation, which is what made the automatic loop of \S\ref{sec:selfheal} plausible.
+
+\subsection{Development: Validation and Defects Found}
+Validation was twofold. First, a suite of 23 guardrail tests, each asserting that a specific misuse raises a specific message (odd \code{nf}, a pmos in the nfet row, a single instance instead of a row, grid mixing, a non-collinear wire, a track through a pin, a manual wire touching another net, a track too close to a drain, a track on the tied-source row, a missing device in \code{place\_rows}, a duplicate port, \ldots) and that the netlist checks report an unconnected pin, a wrong tie and a split net, and nothing when the cell is complete. Second, all eight reference cells were rewritten on the layer using only \code{connect()} (18--45 lines each) and pass DRC\,0 / LVS match; the MUX becomes 16\,\% smaller than the human reference because no spacer cells are needed. Table~\ref{tab:defects} lists the defects found in the layer itself during this development and during the v2 measurement; the four found by the v2 instructors were fixed after the v2 runs and before v3.
+
+\begin{table}[t]
+\caption{Defects of the layer found during development (D) and by the v2 instructors (I), with their fixes.}
+\label{tab:defects}
+\centering\footnotesize
+\begin{tabular}{@{}L{0.03\columnwidth}L{0.42\columnwidth}L{0.46\columnwidth}@{}}
+\toprule
+& symptom & cause $\rightarrow$ fix \\
+\midrule
+D & reference NAND output wire refused as touching VDD & tied-source strips modelled up to the drain row $\rightarrow$ measured lengths (Table~\ref{tab:footprint}) \\
+D & NAND3 li1 spacing violation accepted & source bar too short $\rightarrow$ $\pm$0.225\um{} past the contacts \\
+D & long detours with far tracks & outward search first $\rightarrow$ between-pin tracks, then L-paths, then outward \\
+D & a net on a free row blocked a later net (strong-arm latch) & no third layer $\rightarrow$ metal2 escape via \code{r34} \\
+D & port label lost when two pin centres coincide; LVS pin missing & label at the pin centre $\rightarrow$ label on a sub-segment at least one track long with no other centre \\
+D & isolated li1 pad (li.6) at a stub end; far-end via missing on multi-pin nets & via at a non-pin end / end flag lost in the pairwise join $\rightarrow$ vias only at pin ends, per pin \\
+D & reference MUX refused & rule ``every later \code{connect()} of a net shares a pin'' too strict $\rightarrow$ replaced by the split-net check \\
+D & INV: a rail given as one pin drew a zero-length stub (DRC) & single spanning pin treated as a point $\rightarrow$ the wire runs along the whole pin; the v2 run in progress was discarded and restarted \\
+I & vertical metal1 port written on li1 & zero-length fallback box in \code{port()} $\rightarrow$ layer taken from the wire \\
+I & a rail covering only some devices not reported & no coverage check $\rightarrow$ \code{rails()} draws both rails over all devices \\
+I & second \code{connect()} of a net without a shared pin accepted & no connectivity check $\rightarrow$ split-net check in \code{check()} \\
+I & \code{KeyError} instead of a message for an unplaced device (four rounds lost) & missing validation $\rightarrow$ \code{place\_rows()} names the unplaced devices \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Prompt Changes Between v1 and v2}
+\label{sec:prompt}
+The six-turn context was rewritten for the new API with the same structure (netlist $\rightarrow$ dictionaries; placement rules; placement code; connection commands; connection strategy; connect and finish), the same length, and still without any example generator. Beyond replacing the command vocabulary, five wording changes were made, listed here so that readers can separate them from the library effect: (1) the tie rule, ``a device whose source is on VSS uses \code{tie='S'}'', became ``decide \code{tie} for each device separately from its own dictionary, never for all devices at once \ldots{} most cells mix tied and untied devices''; (2) the placement turn asks for a comment on each device line with its D/G/S values and the tie derived from them; (3) the dictionary turn adds a \code{"ref"} key with the netlist device name; (4) the connection turns add \code{rails()}, the instruction to list all pins of a multi-pin net in one \code{connect()} call, and an order (rails, series nodes, outputs, inputs); (5) the required skeleton ends with a loop that prints \code{check()}'s findings as \code{CHECK:} lines, which the judge and the automatic loop read. Everything about \code{mn} arrays, \code{via\_tag}, track indices and pin indexing was removed.
 
 \section{Results with the Layer}
 \label{sec:results}
@@ -191,9 +315,31 @@ rails, port labels & \code{rails()}; \code{port()} avoids Magic's label collisio
 Same eight cells, five attempts, \code{gpt-4o-2024-08-06}, instructions $\leq$\,L3 by four coding-agent instructors. Thirteen of 40 attempts passed on the six turns alone (INV and TINV 5/5), and 40 of 40 passed after instructions, with 41 fix rounds in total (v1: 225). Labels fell to A\,7, B\,31, C\,5, D\,0, E\,0 (Fig.~\ref{fig:labels}). Nineteen of the 22 instructions were L2 (relaying the tool's message with a one-line explanation); none was L4. The remaining B failures had three forms: a tie set contrary to the device's own dictionary (6 of 10 first rounds on the high-speed cells), multi-pin nets built as a single drain pair (parallel devices and fan-out gates omitted), and one pfet dropped from the placement list when re-ordering. Each was repaired by a single instruction quoting the library's message. Tokens 0.76\,M in (0.58\,M cached) / 0.08\,M out, about \$2. A first formal run was discarded: a library bug drew a rail given as a single pin as a zero-length stub and failed DRC on INV; the library was fixed and all 40 attempts were re-run so that the tool version is uniform.
 
 \subsection{Automatic Feedback Only (v3)}
-Because every failure is now a precise message, we replaced the human with an automatic loop: the feedback is the tool output only (the last traceback line or \code{SafeError}, the script's \code{CHECK:} lines, DRC rule names with boxes, netgen's net/device counts and pin mismatches, the extracted netlist) followed by a fixed sentence asking for the corrected script; at most eight rounds. The library had meanwhile received the four defects found by the v2 instructors (port label layer, unplaced-device message, split-net check, \code{rails()}), so v3 is not the same tool version as v2. Table~\ref{tab:three} and Fig.~\ref{fig:rounds} summarize. Small cells now pass on the first turns (NAND2, NAND3, NOR2 four of five). The larger cells need two to three times more automatic rounds than human rounds (MUX 3.4 vs 1.0, strong-arm latch 5.2 vs 2.8) but all pass within the budget, at zero human time. Fig.~\ref{fig:sal} shows a strong-arm latch produced on the layer.
+\label{sec:selfheal}
+The second hypothesis was tested by removing the human: after the six context turns, a script (\code{llm/selfheal.py}) runs the judge, builds a message from the tool output alone, sends it, extracts the new script and repeats, for at most eight rounds. Table~\ref{tab:feedback} gives the composition of the message. It contains no diagnosis and no hint, i.e.\ it is an L1 instruction in the protocol's terms, so the comparison with v2 (mostly L2) isolates what the human added. The whole conversation is resent every round; prompt caching makes this cheap (0.75\,M of the 0.95\,M input tokens were cached).
 
-\textbf{A negative result.} The automatic loop sometimes oscillates between a crash and an LVS mismatch. A feedback variant that appends the history of problems (open / fixed / back again) was tried on paired copies of the ten MUX and strong-arm first-round states: rounds went from 43 to 42 and one attempt failed. The variant is not used.
+\begin{table}[t]
+\caption{Composition of the automatic feedback message. Each block is included only when its condition holds; the last line is always present.}
+\label{tab:feedback}
+\centering\footnotesize
+\begin{tabular}{@{}L{0.27\columnwidth}L{0.65\columnwidth}@{}}
+\toprule
+condition & content \\
+\midrule
+script crashed & ``The script failed while running:'' and the last four non-empty lines of the traceback (for a \code{SafeError}, its message) \\
+script ran & the \code{CHECK:} lines printed by \code{check()} (at most 12) \\
+DRC $>$ 0 & the count and the first ten lines of the DRC report: rule name and the violation box in \um \\
+LVS failed & the result class (mismatch / pin mismatch / property errors), netgen's lines with net and device counts, \code{**Mismatch**}, ``no matching'' and ``Property error'' (at most 14), and the extracted top-level subcircuit of the layout (at most 1500 characters) \\
+always & ``Fix the problems and output the complete corrected script.'' \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The library had meanwhile received the four fixes marked I in Table~\ref{tab:defects}, so v3 is not the same tool version as v2. Table~\ref{tab:three} and Fig.~\ref{fig:rounds} summarize. All 40 attempts pass; 24 pass on the six turns alone (v2: 13), which reflects the later library version and the slightly different prompts rather than the feedback, since no feedback has been sent at that point. Small cells now pass on the first turns (NAND2, NAND3, NOR2 four of five). The larger cells need two to three times more automatic rounds than human rounds (MUX 3.4 vs 1.0, strong-arm latch 5.2 vs 2.8) but all pass within the budget, at zero human time. Fig.~\ref{fig:sal} shows a strong-arm latch produced on the layer.
+
+\textbf{How the automatic loop fails.} The extra rounds on the large cells come from one pattern: the loop oscillates between a crash and an LVS mismatch. The first strong-arm attempt went crash\,$\rightarrow$\,LVS\,$\rightarrow$\,crash\,$\rightarrow$\,LVS\,$\rightarrow$\,crash\,$\rightarrow$\,LVS\,$\rightarrow$\,pass. Round~1: \code{MN0 (XM1): its S is on VSS in the netlist; use tie='S'}. Round~2: the tie is fixed, but \code{check()} reports \code{MP2.D is not connected} and \code{net OUTP is in 2 separate pieces}, and netgen counts 14 nets against 10. Round~3: while adding the missing connections the model regenerated the device block and set a wrong tie on another device (\code{MP2 (XM8): its S is on VDD \ldots}), a crash again. Each reply is a complete new script, and a fix in one part of it undoes an earlier fix in another. The human instructors did not show this pattern because their one-sentence explanation usually named both problems at once.
+
+\textbf{A negative result.} The obvious remedy is memory: a second feedback variant appends, after the current findings, a list of every problem seen in earlier rounds marked \emph{still open}, \emph{fixed---keep it that way}, or \emph{back again (it was fixed before)}, and asks the model to fix the open ones ``while keeping everything that already works''. On paired copies of the ten MUX and strong-arm first-round states, this changed the total from 43 to 42 rounds and one attempt ran out of budget; the variant is not used. The model does not seem to lack a record of what was fixed; what it lacks is a view of what its new script changed relative to the previous one. Feeding back a diff between the two oscillating scripts is the next candidate and is left as future work.
 
 \begin{table*}[t]
 \caption{Three conditions, 8 cells $\times$ 5 attempts.}
@@ -246,10 +392,33 @@ For the 117 passing layouts (8 references, 21 v1, 40 v2, 40 v3) we measured the 
 Generator-based layout frameworks~\cite{bag2,laygo,laygo2} provide the programmable substrate; rule- and template-based analog layout automation (e.g.\ ALSYN, ALIGN) targets the same cells by other means. LLMs for chip design have mostly produced HDL; You et al.~\cite{you2024} were among the first to generate layout generator code interactively. Our contribution is orthogonal to the model: a measurement protocol and an interface layer that turn the model's failures into messages a loop can act on.
 
 \section{Conclusion}
-Reproduced on an open-source stack, the paper's interactive LLM layout flow passes 21 of 40 attempts on eight small cells, and none without human help. Labelling every failure shows that the bottleneck is the interface between the LLM and the framework, not circuit knowledge. A thin net-aware layer that validates inputs, tracks occupancy and finds free tracks removes that bottleneck: 40 of 40 with human help, and 40 of 40 with no human when the layer's messages are fed back verbatim. The remaining gaps are quality (more metal2 than a designer would use) and scale (larger and gate-level cells), both now measurable.
+Reproduced on an open-source stack, the paper's interactive LLM layout flow passes 21 of 40 attempts on eight small cells, and none without human help. Labelling every failure shows that the bottleneck is the interface between the LLM and the framework, not circuit knowledge. A thin net-aware layer that validates inputs, tracks occupancy and finds free tracks removes that bottleneck: 40 of 40 with human help, and 40 of 40 with no human when the layer's messages are fed back verbatim. The automatic loop's remaining weakness is oscillation between two failure states on the largest cells, which a problem history did not cure. The remaining gaps are quality (more metal2 than a designer would use) and scale (larger and gate-level cells), both now measurable.
 
 \section*{Reproducibility}
 Pinned submodules, the judge, prompts, the protocol, instructor briefs, per-attempt logs (prompts, replies, generated code, DRC/LVS outputs, labels) and CSV summaries are at \url{https://github.com/Toragonite/laygo2-llm-agent}. Runs are tagged \code{20260930} (v1), \code{v2\_20260930} (v2), \code{v3\_selfheal} (v3) and \code{v3b\_selfheal} (feedback variant).
+
+
+\appendices
+\section{Per-Cell Numbers}
+\begin{table}[H]
+\caption{Per cell: v1 passed / mean instructions when passed; v2 and v3 first-turn passes / passed / mean fix rounds over all five attempts.}
+\label{tab:percell}
+\centering\footnotesize
+\begin{tabular}{@{}lccc@{}}
+\toprule
+cell & v1 & v2 & v3 \\
+\midrule
+INV & 5/5 $\cdot$ 2.2 & 5 $\cdot$ 5/5 $\cdot$ 0.0 & 5 $\cdot$ 5/5 $\cdot$ 0.0 \\
+TINV & 5/5 $\cdot$ 2.4 & 5 $\cdot$ 5/5 $\cdot$ 0.0 & 5 $\cdot$ 5/5 $\cdot$ 0.0 \\
+NOR2 & 5/5 $\cdot$ 4.6 & 2 $\cdot$ 5/5 $\cdot$ 0.8 & 4 $\cdot$ 5/5 $\cdot$ 0.4 \\
+NAND2 & 1/5 $\cdot$ 7.0 & 0 $\cdot$ 5/5 $\cdot$ 1.2 & 4 $\cdot$ 5/5 $\cdot$ 0.4 \\
+NAND3 & 5/5 $\cdot$ 4.0 & 1 $\cdot$ 5/5 $\cdot$ 0.8 & 4 $\cdot$ 5/5 $\cdot$ 0.4 \\
+2-to-1 MUX & 0/5 & 0 $\cdot$ 5/5 $\cdot$ 1.0 & 0 $\cdot$ 5/5 $\cdot$ 3.4 \\
+TSPC FF & 0/5 & 0 $\cdot$ 5/5 $\cdot$ 1.6 & 2 $\cdot$ 5/5 $\cdot$ 1.4 \\
+strong-arm latch & 0/5 & 0 $\cdot$ 5/5 $\cdot$ 2.8 & 0 $\cdot$ 5/5 $\cdot$ 5.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{thebibliography}{9}
 \bibitem{bag2} E. Chang et al., ``BAG2: A process-portable framework for generator-based AMS circuit design,'' in \emph{Proc.\ IEEE CICC}, 2018.

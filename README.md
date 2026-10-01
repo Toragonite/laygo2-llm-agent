@@ -28,7 +28,7 @@ misunderstanding 85 → 0, circuit-reading errors 79 → 31. Caveats: model, lib
 together between v1 and v2; the instructions were written by Claude teammates acting as the designer (see
 `docs/protocol.md`). Full numbers and per-attempt logs: `results/`, `docs/PROGRESS.md`.
 
-**Write-ups:** arXiv-style paper `paper/main.pdf` (LaTeX source `paper/main.tex`, IEEEtran) · Markdown version `docs/paper.md` · Korean technical report `docs/report.md`.
+**Write-ups:** arXiv-style paper `paper/main.pdf` (9 pages; LaTeX source `paper/main.tex`, IEEEtran) · short Markdown version `docs/paper.md` · Korean technical report `docs/report.md`.
 
 ## What is in the repo
 
