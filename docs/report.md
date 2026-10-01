@@ -128,4 +128,4 @@ v2에서 사람 지시 22개 중 19개가 "도구 메시지 전달"이었다. �
 | 실행 도구 | `llm/generate.py`, `llm/chat.py`, `llm/selfheal.py`, `llm/run_bench.py`, `llm/summarize.py` |
 | 시각화·지표 | `flow/plot_layout.py`, `flow/layout3d.py`, `flow/metrics.py` |
 | 결과 | `results/baseline_*.csv`, `results/quality_20261001.csv` |
-| 규칙과 기록 | `docs/protocol.md`, `docs/paper_notes.md`, `docs/PROGRESS.md`, `docs/pilot_observations.md` |
+| 규칙과 기록 | `docs/protocol.md`, `docs/paper_notes.md`, `docs/pilot_observations.md` |

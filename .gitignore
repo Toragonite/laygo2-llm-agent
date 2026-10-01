@@ -5,3 +5,10 @@ pdk/
 __pycache__/
 .venv/
 .claude/
+
+# local notes and assistant settings
+CLAUDE.md
+GUIDE.md
+docs/TEAM.md
+docs/PROGRESS.md
+docs/instructor_brief*.md

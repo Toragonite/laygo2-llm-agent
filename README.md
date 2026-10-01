@@ -26,7 +26,7 @@ Cells: INV, TINV, NOR, NAND2, NAND3, 2-to-1 MUX (paper), ratioed TSPC FF and str
 Failure labels over all failed rounds, v1 → v2: API misuse 134 → 7, routing conflicts 127 → 5, geometry
 misunderstanding 85 → 0, circuit-reading errors 79 → 31. Caveats: model, library and context wording changed
 together between v1 and v2; the instructions were written by Claude teammates acting as the designer (see
-`docs/protocol.md`). Full numbers and per-attempt logs: `results/`, `docs/PROGRESS.md`.
+`docs/protocol.md`). Full numbers and per-attempt logs: `results/`, `docs/report.md`.
 
 **Write-ups:** arXiv-style paper `paper/main.pdf` (9 pages; LaTeX source `paper/main.tex`, IEEEtran) · short Markdown version `docs/paper.md` · Korean technical report `docs/report.md`.
 
@@ -39,14 +39,14 @@ laygo2_safe/     strict, net-aware layer over laygo2: validated inputs, occupanc
 llm/             context/ (v1) and context_safe/ (v2) multi-turn prompts, generate.py, chat.py (human loop),
                  selfheal.py (automatic loop), run_bench.py, summarize.py
 ref/             golden generators (patched workspace examples + 2 written from the paper), golden_safe rewrites, reference netlists
-bench/tasks.yaml benchmark tasks and conditions      results/   CSV summaries      docs/   progress log, protocol, notes
+bench/tasks.yaml benchmark tasks and conditions      results/   CSV summaries      docs/   protocol, notes, reports
 third_party/     laygo2 and the SKY130 workspace as pinned submodules (never modified)
 ```
 
 ## Run it
 
 ```bash
-# environment (uv, Magic 8.3.460 from source, netgen-lvs, ciel sky130A) — see docs/PROGRESS.md "환경 메모"
+# environment: uv, Magic 8.3.460 built from source, netgen-lvs, ciel sky130A
 scripts/check_env.sh                                                       # 9 checks must PASS
 
 # judge one golden cell
