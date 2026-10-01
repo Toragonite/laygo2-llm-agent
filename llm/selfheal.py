@@ -25,7 +25,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate import OpenAIChat, extract_python, run_check  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
-INSTRUCTOR = "auto-feedback-v1"
+FEEDBACK = "v1"   # set from --feedback
+
+
+def facts_of(chk, check_dir: Path) -> list:
+    """Short normalized problem lines of one check, used as the constraint memory (feedback v2)."""
+    out = []
+    if not chk or chk.get("error"):
+        return out
+    if not chk.get("gen_ok"):
+        err = [ln for ln in (chk.get("gen_error") or "").strip().splitlines() if ln.strip()]
+        if err:
+            out.append("crash: " + err[-1].strip()[:160])
+        return out
+    gen_log = check_dir / "gen.log"
+    if gen_log.exists():
+        out += [ln.strip()[:160] for ln in gen_log.read_text().splitlines() if ln.startswith("CHECK:")][:8]
+    if chk.get("drc_errors"):
+        drc = (check_dir / "drc.txt").read_text().splitlines() if (check_dir / "drc.txt").exists() else []
+        out += ["DRC: " + ln.strip()[:120] for ln in drc if ln and not ln.startswith("    box")][:4]
+    if not chk.get("lvs_match"):
+        out.append(f"LVS: {chk.get('lvs_result')}")
+    return out
 
 
 def passed(chk):
@@ -65,6 +86,30 @@ def feedback(chk, check_dir: Path) -> str:
     return "\n\n".join(parts)
 
 
+def feedback_v2(chk, check_dir: Path, memory: list, k: int) -> str:
+    """v1 message plus a constraint memory: everything found in earlier rounds, marked as still open,
+    fixed, or back again, so that a fix does not undo an earlier one."""
+    now = facts_of(chk, check_dir)
+    base = feedback(chk, check_dir)
+    lines = []
+    for item in memory:
+        if item["fact"] in now:
+            status = "STILL OPEN" if item["last_seen"] == k - 1 else "BACK AGAIN (it was fixed before)"
+        else:
+            status = "fixed, keep it that way"
+        lines.append(f"- [{status}] {item['fact']}")
+    for f in now:
+        if not any(m["fact"] == f for m in memory):
+            memory.append({"fact": f, "first_seen": k, "last_seen": k})
+        else:
+            next(m for m in memory if m["fact"] == f)["last_seen"] = k
+    if not lines:
+        return base
+    head = base.rsplit("\n\n", 1)[0]
+    return (head + "\n\nHistory of problems in this conversation (do not reintroduce a fixed one):\n" + "\n".join(lines)
+            + "\n\nFix the open problems while keeping everything that already works, and output the complete corrected script.")
+
+
 def heal(run: Path, max_rounds: int) -> dict:
     meta = json.loads((run / "meta.json").read_text())
     tr = json.loads((run / "transcript.json").read_text())
@@ -72,16 +117,20 @@ def heal(run: Path, max_rounds: int) -> dict:
     cell, netlist = meta["cell"], meta["netlist"]
     log_path = run / "chat.json"
     log = json.loads(log_path.read_text()) if log_path.exists() else {
-        "cell": cell, "model": meta["model"], "context_version": meta["context_version"], "instructor": INSTRUCTOR,
+        "cell": cell, "model": meta["model"], "context_version": meta["context_version"], "instructor": f"auto-feedback-{FEEDBACK}",
         "started": datetime.datetime.now().isoformat(timespec="seconds"),
         "prompts": {"placement": 0, "routing": 0, "other": 0}, "rounds": [], "labels": {},
         "usage": {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0}}
     last = log["rounds"][-1]["check"] if log["rounds"] else meta.get("check")
     last_dir = run / (f"check_{log['rounds'][-1]['k']}" if log["rounds"] else "check")
     chat = OpenAIChat(meta["model"], meta["temperature"], meta["max_tokens"])
+    memory = log.setdefault("memory", [])
+    if FEEDBACK == "v2" and not log["rounds"]:
+        for f in facts_of(last, last_dir):
+            memory.append({"fact": f, "first_seen": 0, "last_seen": 0})
     while not passed(last) and len(log["rounds"]) < max_rounds:
         k = len(log["rounds"]) + 1
-        text = feedback(last, last_dir)
+        text = feedback_v2(last, last_dir, memory, k) if FEEDBACK == "v2" else feedback(last, last_dir)
         messages.append({"role": "user", "content": text})
         (run / f"auto_{k}_user.md").write_text(text)
         t0 = time.time()
@@ -122,7 +171,10 @@ def main():
     ap.add_argument("--run", help="one attempt directory")
     ap.add_argument("--only", help="comma-separated cell names (with --tag)")
     ap.add_argument("--max-rounds", type=int, default=8)
+    ap.add_argument("--feedback", choices=["v1", "v2"], default="v1", help="v1: tool output only; v2: plus a history of problems")
     a = ap.parse_args()
+    global FEEDBACK
+    FEEDBACK = a.feedback
     runs = [Path(a.run).resolve()] if a.run else sorted(Path(p) for p in glob.glob(str(REPO / "runs" / "bench" / a.tag / "*" / "a*")))
     only = set(a.only.split(",")) if a.only else None
     results = []
