@@ -1,0 +1,41 @@
+cell,attempt,date,model,temperature,context_version,tool_version,instructor,initial,passed,pass_round,n_fix,fix_placement,fix_routing,fix_other,prompts_placement_total,prompts_routing_total,levels,untagged_levels,excluded_above_L3,complete,states,label_A,label_B,label_C,label_D,label_E,input_tokens,output_tokens,cached_tokens,run_dir
+inv_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11455,526,7552,runs/bench/v3_selfheal/inv_2x/a1
+inv_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11411,499,7552,runs/bench/v3_selfheal/inv_2x/a2
+inv_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11411,500,7552,runs/bench/v3_selfheal/inv_2x/a3
+inv_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11404,536,7424,runs/bench/v3_selfheal/inv_2x/a4
+inv_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,11536,585,7552,runs/bench/v3_selfheal/inv_2x/a5
+mux2to1_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,2,2,0,0,2,3,3,L1 L1,0,False,True,gen gen pass,0,0,0,0,0,26972,3878,18304,runs/bench/v3_selfheal/mux2to1_2x/a1
+mux2to1_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,8,8,0,0,8,3,3,L1 L1 L1 L1 L1 L1 L1 L1,0,False,True,gen gen gen gen lvs gen gen gen pass,0,0,0,0,0,86534,9559,80000,runs/bench/v3_selfheal/mux2to1_2x/a2
+mux2to1_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,1,1,0,0,1,3,3,L1,0,False,True,gen pass,0,0,0,0,0,21211,3147,17792,runs/bench/v3_selfheal/mux2to1_2x/a3
+mux2to1_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,3,3,0,0,3,3,3,L1 L1 L1,0,False,True,gen gen lvs pass,0,0,0,0,0,34395,4800,29824,runs/bench/v3_selfheal/mux2to1_2x/a4
+mux2to1_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,3,3,0,0,3,3,3,L1 L1 L1,0,False,True,gen gen gen pass,0,0,0,0,0,34196,4933,29568,runs/bench/v3_selfheal/mux2to1_2x/a5
+nand3_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,13782,1209,10368,runs/bench/v3_selfheal/nand3_2x/a1
+nand3_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,lvs,True,2,2,0,0,2,3,3,L1 L1,0,False,True,lvs gen pass,0,0,0,0,0,23177,2555,18688,runs/bench/v3_selfheal/nand3_2x/a2
+nand3_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,13801,1222,9344,runs/bench/v3_selfheal/nand3_2x/a3
+nand3_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,13706,1204,9216,runs/bench/v3_selfheal/nand3_2x/a4
+nand3_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,13791,1268,10368,runs/bench/v3_selfheal/nand3_2x/a5
+nand_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12507,810,8192,runs/bench/v3_selfheal/nand_2x/a1
+nand_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12575,886,8448,runs/bench/v3_selfheal/nand_2x/a2
+nand_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12509,820,8192,runs/bench/v3_selfheal/nand_2x/a3
+nand_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12509,825,8192,runs/bench/v3_selfheal/nand_2x/a4
+nand_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,lvs,True,2,2,0,0,2,3,3,L1 L1,0,False,True,lvs gen pass,0,0,0,0,0,20491,1827,15616,runs/bench/v3_selfheal/nand_2x/a5
+nor_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12579,866,6016,runs/bench/v3_selfheal/nor_2x/a1
+nor_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12521,839,5888,runs/bench/v3_selfheal/nor_2x/a2
+nor_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12561,873,8448,runs/bench/v3_selfheal/nor_2x/a3
+nor_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12530,828,8192,runs/bench/v3_selfheal/nor_2x/a4
+nor_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,lvs,True,2,2,0,0,2,3,3,L1 L1,0,False,True,lvs gen pass,0,0,0,0,0,20520,1874,11648,runs/bench/v3_selfheal/nor_2x/a5
+sal_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,6,6,0,0,6,3,3,L1 L1 L1 L1 L1 L1,0,False,True,gen lvs gen lvs gen lvs pass,0,0,0,0,0,68678,8230,61696,runs/bench/v3_selfheal/sal_2x/a1
+sal_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,lvs,True,5,5,0,0,5,3,3,L1 L1 L1 L1 L1,0,False,True,lvs gen gen lvs gen pass,0,0,0,0,0,56288,7054,50432,runs/bench/v3_selfheal/sal_2x/a2
+sal_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,5,5,0,0,5,3,3,L1 L1 L1 L1 L1,0,False,True,gen lvs gen lvs lvs pass,0,0,0,0,0,57469,7394,52224,runs/bench/v3_selfheal/sal_2x/a3
+sal_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,7,7,0,0,7,3,3,L1 L1 L1 L1 L1 L1 L1,0,False,True,gen lvs lvs lvs gen gen gen pass,0,0,0,0,0,82284,9034,74752,runs/bench/v3_selfheal/sal_2x/a4
+sal_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,lvs,True,3,3,0,0,3,3,3,L1 L1 L1,0,False,True,lvs lvs lvs pass,0,0,0,0,0,38122,5204,33408,runs/bench/v3_selfheal/sal_2x/a5
+tinv_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12673,919,8448,runs/bench/v3_selfheal/tinv_2x/a1
+tinv_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12712,965,8448,runs/bench/v3_selfheal/tinv_2x/a2
+tinv_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12706,956,8448,runs/bench/v3_selfheal/tinv_2x/a3
+tinv_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12615,939,8448,runs/bench/v3_selfheal/tinv_2x/a4
+tinv_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,12719,943,6016,runs/bench/v3_selfheal/tinv_2x/a5
+tspc_2x,1,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,3,3,0,0,3,3,3,L1 L1 L1,0,False,True,gen gen lvs pass,0,0,0,0,0,29198,3368,24448,runs/bench/v3_selfheal/tspc_2x/a1
+tspc_2x,2,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,2,2,0,0,2,3,3,L1 L1,0,False,True,gen gen pass,0,0,0,0,0,22932,2501,18816,runs/bench/v3_selfheal/tspc_2x/a2
+tspc_2x,3,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,14306,1312,7936,runs/bench/v3_selfheal/tspc_2x/a3
+tspc_2x,4,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,pass,True,0,0,0,0,0,3,3,,0,False,True,pass,0,0,0,0,0,14396,1370,9856,runs/bench/v3_selfheal/tspc_2x/a4
+tspc_2x,5,2026-10-01,gpt-4o-2024-08-06,default,c677880,b1927a2,auto-feedback-v1,gen,True,2,2,0,0,2,3,3,L1 L1,0,False,True,gen gen pass,0,0,0,0,0,23325,2707,18304,runs/bench/v3_selfheal/tspc_2x/a5
