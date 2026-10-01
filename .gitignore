@@ -4,3 +4,4 @@ pdk/
 *.mag
 __pycache__/
 .venv/
+.claude/
