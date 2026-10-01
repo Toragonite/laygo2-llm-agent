@@ -102,7 +102,7 @@ class Cell:
 
     def __init__(self, name: str, libname: str = "logic_ver2", out_dir=None, rails=("VSS", "VDD"), netlist=None):
         self.name, self.libname = name, libname
-        self.rails = {"nmos": rails[0], "pmos": rails[1]}
+        self.rail_nets = {"nmos": rails[0], "pmos": rails[1]}
         # With the reference netlist known up front, ref='XMn' lets nmos()/pmos() and connect() reject a
         # wrong tie or a pin on the wrong net immediately, at the line that is wrong.
         self.netlist_path = netlist
@@ -159,7 +159,7 @@ class Cell:
                 raise SafeError(f"{ref} is a {want_kind} in the netlist; use c.{want_kind}() for {name}")
             if dev["m"] != nf:
                 raise SafeError(f"{ref} has m={dev['m']} in the netlist, so use nf={dev['m']} for {name}")
-            rail = self.rails[kind]
+            rail = self.rail_nets[kind]
             for term in ("S", "D"):
                 on_rail = dev[term] == rail
                 if tie == term and not on_rail:
@@ -207,6 +207,11 @@ class Cell:
         for inst in prow:
             self.dsn.place(grid=pg, inst=inst, mn=cursor + pg.mn.height_vec(inst))
             cursor = pg.mn.bottom_right(inst)
+        placed = {i.name for i in nrow + prow}
+        missing = [n for n in self.instances if n not in placed]
+        if missing:
+            raise SafeError(f"place_rows(): {', '.join(missing)} were created with nmos()/pmos() but are not in "
+                            f"either row; every device must be placed (the rows may have different lengths)")
         self._placed = True
         self._register_pins(nrow + prow)
 
@@ -216,7 +221,7 @@ class Cell:
         ~0.24 µm wide running between the source row and the drain row; the gate strap is ~0.4 µm
         wide; the rail is 0.26 µm of metal1."""
         for inst in insts:
-            rail_net = self.rails[inst._safe["kind"]]
+            rail_net = self.rail_nets[inst._safe["kind"]]
             shadow = self.templates[inst._safe["kind"]].generate(
                 name=inst.name + "__shadow", transform=inst._safe["transform"],
                 params={"nf": inst._safe["nf"], "tie": None})
@@ -473,6 +478,19 @@ class Cell:
         lines.append("  try another grid, a different end of the pin, or move the instances apart")
         raise SafeError("\n".join(lines))
 
+    def rails(self):
+        """Both power rails across the whole cell: VSS over every nfet, VDD over every pfet.
+        Returns (vss_wire, vdd_wire) for port()."""
+        if not self._placed:
+            raise SafeError("rails() needs placed instances: call place_rows() first")
+        out = []
+        for kind in ("nmos", "pmos"):
+            insts = sorted((i for i in self.instances.values() if i._safe["kind"] == kind), key=lambda i: int(i.xy[0]))
+            if not insts:
+                raise SafeError(f"rails(): no {kind} placed")
+            out.append(self.connect(self.rail_nets[kind], [(insts[0], "RAIL"), (insts[-1], "RAIL", "right")], "r12"))
+        return out[0], out[1]
+
     # ---- ports -----------------------------------------------------------------------------
     def port(self, name: str, g: str, wire):
         """Mark a wire as the cell port `name` (must be the netlist port name, used once)."""
@@ -491,11 +509,12 @@ class Cell:
         axis = 1 if lo[0] == hi[0] else 0                        # 1: vertical wire, 0: horizontal
         n = int(hi[axis] - lo[axis])
         candidates = [full]
-        for frac in (0.25, 0.75, 0.5):
-            if n >= 2:
+        # fallbacks are sub-segments at least one track long along the wire, so laygo2 keeps the wire's
+        # layer (a zero-length box would be drawn on the grid's horizontal layer, i.e. li1 for a metal1 wire)
+        if n >= 2:
+            for start, stop in ((0, 1), (n - 1, n), (n // 2, n // 2 + 1)):
                 a, b = lo.copy(), hi.copy()
-                mid = lo[axis] + int(round(n * frac))
-                a[axis], b[axis] = mid, mid
+                a[axis], b[axis] = lo[axis] + start, lo[axis] + stop
                 candidates.append(np.array([a, b]))
         for mn in candidates:
             centre = tuple(np.round(np.mean(grid.xy(mn), axis=0)).astype(int).tolist()) if n else tuple(grid.xy(mn[0]).tolist())
@@ -529,7 +548,7 @@ class Cell:
                 problems.append(f"{inst.name}: is {inst._safe['kind']} but {dev['name']} is {kind}")
             if inst._safe["nf"] != dev["m"]:
                 problems.append(f"{inst.name}: nf={inst._safe['nf']} but {dev['name']} has m={dev['m']}")
-            rail = self.rails[kind]
+            rail = self.rail_nets[kind]
             for term in ("D", "G", "S"):
                 want = dev[term]
                 tie = inst._safe["tie"]
@@ -548,12 +567,46 @@ class Cell:
                     problems.append(f"{inst.name}.{term} is on {occ.net} but the netlist puts it on {want}")
                 if want == rail and tie != term and term != "G":
                     problems.append(f"{inst.name}.{term} is on {rail} in the netlist: use tie={term!r}")
+        problems += self._split_nets()
         for p in ports:
             if p not in self.ports:
                 problems.append(f"port {p} not created")
         for p in self.ports:
             if p not in ports:
                 problems.append(f"port {p} is not a netlist port")
+        return problems
+
+    def _split_nets(self):
+        """Nets whose pins and wires do not form one connected piece (e.g. two connect() calls of the same
+        net that never meet). Pieces are found by overlap on the same layer; vias join the layers."""
+        problems = []
+        by_net = {}
+        for o in self._occ:
+            if o.net and "(tied" not in o.owner:        # template-internal tie straps are joined inside the template
+                by_net.setdefault(o.net, []).append(o)
+        for net, occs in by_net.items():
+            pins = [o for o in occs if "." in o.owner.split(" ")[0]]
+            if len(pins) < 2:
+                continue
+            parent = list(range(len(occs)))
+            def find(i):
+                while parent[i] != i:
+                    parent[i] = parent[parent[i]]; i = parent[i]
+                return i
+            for i in range(len(occs)):
+                for j in range(i + 1, len(occs)):
+                    a, b = occs[i], occs[j]
+                    same_layer = a.layer == b.layer
+                    via_link = ("via" in a.owner or "via" in b.owner or a.owner == b.owner) and not same_layer
+                    if (same_layer or via_link) and a.gap(b) == 0:
+                        parent[find(i)] = find(j)
+            roots = {find(occs.index(p)) for p in pins}
+            if len(roots) > 1:
+                groups = {}
+                for p in pins:
+                    groups.setdefault(find(occs.index(p)), []).append(p.owner)
+                desc = " | ".join(", ".join(g) for g in groups.values())
+                problems.append(f"net {net} is in {len(roots)} separate pieces: {desc} (connect them with a shared pin)")
         return problems
 
     # ---- export ----------------------------------------------------------------------------
@@ -771,6 +824,8 @@ class Cell:
             raise SafeError(f"expected an instance (from nmos()/pmos()), got {type(x).__name__}")
         if not hasattr(x, "_safe"):
             raise SafeError(f"instance {getattr(x, 'name', '?')} was not created through this Cell")
+        if self._placed and (x.name, "RAIL") not in self._pin_occ:
+            raise SafeError(f"{x.name} was created but not placed: add it to place_rows()")
 
     def _check_pts(self, g, *pts):
         out = []

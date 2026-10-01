@@ -22,7 +22,8 @@ p = c.pmos('MP0', nf=2, tie='S', ref='XM2')
 c.place_rows([n_a, n_b], [p_a, p_b])
 ```
 - The first list is the nfet row (placed left to right at the bottom), the second the pfet row (placed
-  left to right directly above). The two lists may have different lengths.
+  left to right directly above). The two lists may have different lengths. Every device you created must
+  appear in one of the two lists (a missing device is refused).
 
 ## Basic placement rules (shared by CMOS logic cells)
 1. NMOS devices go in the bottom row, PMOS devices in the row directly above.

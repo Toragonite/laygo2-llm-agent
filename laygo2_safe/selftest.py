@@ -58,6 +58,21 @@ a = c3.nmos("MN0", 2, "D", ref="XM1"); b = c3.pmos("MP0", 2, "S", ref="XM2")   #
 c3.place_rows([a], [b])
 probs = c3.check("../../ref/netlist/inv.spice")
 cases.append(("check(): wrong tie detected", "raised" if any("tied to VSS but the netlist puts it on O" in p for p in probs) else "NO ERROR", "; ".join(probs)[:90]))
+
+
+# ---- v2-measurement defects ------------------------------------------------------------------
+c4 = Cell("selftest4")
+x0 = c4.nmos("MN0", 2, "S"); x1 = c4.nmos("MN1", 2); y0 = c4.pmos("MP0", 2, "S"); y1 = c4.pmos("MP1", 2, "S")
+expect("place_rows with a created-but-missing device", lambda: c4.place_rows([x0, x1], [y0]))
+c4b = Cell("selftest4b")
+x0 = c4b.nmos("MN0", 2, "S"); x1 = c4b.nmos("MN1", 2); y0 = c4b.pmos("MP0", 2, "S"); y1 = c4b.pmos("MP1", 2, "S")
+c4b.place_rows([x0, x1], [y0, y1])
+w = c4b.connect("OUT", [(x1, "D"), (y1, "D")], "r23")
+c4b.connect("OUT", [(y0, "D", "right"), (y0, "G")], "r12")          # allowed, but the two pieces never meet ...
+sp = c4b._split_nets()
+cases.append(("check(): split net reported", "raised" if any("separate pieces" in m for m in sp) else "NO ERROR", "; ".join(sp)[:90]))
+vss, vdd = c4b.rails()
+cases.append(("rails() returns two wires", "raised" if vss is not None and vdd is not None else "NO ERROR", "ok"))
 bad = [x for x in cases if x[1] != "raised"]
 for label, st, msg in cases:
     print(f"{'ok ' if st == 'raised' else 'FAIL'} {label:40s} {msg}")

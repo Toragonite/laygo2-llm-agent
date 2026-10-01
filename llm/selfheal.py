@@ -1,0 +1,139 @@
+"""llm/selfheal.py — automatic repair loop: feed the tool results back to the LLM, no human in between.
+
+For each attempt made by llm/generate.py, while the last script fails and rounds remain:
+  1. build a feedback message from the tool outputs only (L1 information): the traceback / SafeError
+     line when the script crashed, the script's own CHECK lines, DRC rule names with boxes, the netgen
+     net/device counts and pin mismatches
+  2. send it as the next user turn, save the reply's python block, judge it with flow/check_cell.py
+Rounds are recorded in chat.json exactly like llm/chat.py (kind "other", level "L1", instructor
+"auto-feedback-v1"), so llm/summarize.py aggregates them the same way.
+
+Usage:
+  uv run python llm/selfheal.py --tag v3_selfheal [--max-rounds 8] [--only inv,nand]
+  uv run python llm/selfheal.py --run runs/bench/<tag>/<cell>/a1
+"""
+import argparse
+import datetime
+import glob
+import json
+import re
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from generate import OpenAIChat, extract_python, run_check  # noqa: E402
+
+REPO = Path(__file__).resolve().parents[1]
+INSTRUCTOR = "auto-feedback-v1"
+
+
+def passed(chk):
+    return bool(chk) and chk.get("gen_ok") and chk.get("drc_errors") == 0 and bool(chk.get("lvs_match"))
+
+
+def feedback(chk, check_dir: Path) -> str:
+    """The feedback message: tool facts only, then a fixed request."""
+    parts = []
+    if not chk or chk.get("error"):
+        parts.append("The checker could not run your script: " + str((chk or {}).get("error", ""))[-600:])
+    elif not chk.get("gen_ok"):
+        err = (chk.get("gen_error") or "").strip().splitlines()
+        tail = [ln for ln in err if ln.strip()][-4:]
+        parts.append("The script failed while running:\n" + "\n".join(tail))
+    else:
+        checks = []
+        gen_log = check_dir / "gen.log"
+        if gen_log.exists():
+            checks = [ln for ln in gen_log.read_text().splitlines() if ln.startswith("CHECK:")]
+        if checks:
+            parts.append("The script's own check() reported:\n" + "\n".join(checks[:12]))
+        if chk.get("drc_errors"):
+            drc = (check_dir / "drc.txt").read_text().splitlines() if (check_dir / "drc.txt").exists() else []
+            parts.append(f"DRC: {chk['drc_errors']} error(s):\n" + "\n".join(drc[:10]))
+        if not chk.get("lvs_match"):
+            lvs = (check_dir / "lvs.log").read_text() if (check_dir / "lvs.log").exists() else ""
+            lines = [ln for ln in lvs.splitlines() if re.search(r"Number of (nets|devices)|Mismatch|no matching|Property error", ln)]
+            parts.append(f"LVS result: {chk.get('lvs_result')}.\n" + "\n".join(lines[:14]))
+            ext = check_dir / f"{chk.get('cell')}.spice"
+            if ext.exists():
+                sub = ext.read_text()
+                m = re.search(r"\.subckt logic_ver2_\S+.*?\.ends", sub, re.S)
+                if m:
+                    parts.append("Extracted netlist of your layout (template subcells flattened by netgen):\n" + m.group(0)[:1500])
+    parts.append("Fix the problems and output the complete corrected script.")
+    return "\n\n".join(parts)
+
+
+def heal(run: Path, max_rounds: int) -> dict:
+    meta = json.loads((run / "meta.json").read_text())
+    tr = json.loads((run / "transcript.json").read_text())
+    system, messages = tr["system"], tr["messages"]
+    cell, netlist = meta["cell"], meta["netlist"]
+    log_path = run / "chat.json"
+    log = json.loads(log_path.read_text()) if log_path.exists() else {
+        "cell": cell, "model": meta["model"], "context_version": meta["context_version"], "instructor": INSTRUCTOR,
+        "started": datetime.datetime.now().isoformat(timespec="seconds"),
+        "prompts": {"placement": 0, "routing": 0, "other": 0}, "rounds": [], "labels": {},
+        "usage": {"input_tokens": 0, "output_tokens": 0, "cached_tokens": 0}}
+    last = log["rounds"][-1]["check"] if log["rounds"] else meta.get("check")
+    last_dir = run / (f"check_{log['rounds'][-1]['k']}" if log["rounds"] else "check")
+    chat = OpenAIChat(meta["model"], meta["temperature"], meta["max_tokens"])
+    while not passed(last) and len(log["rounds"]) < max_rounds:
+        k = len(log["rounds"]) + 1
+        text = feedback(last, last_dir)
+        messages.append({"role": "user", "content": text})
+        (run / f"auto_{k}_user.md").write_text(text)
+        t0 = time.time()
+        try:
+            reply, usage = chat.send(system, messages)
+        except Exception as e:
+            messages.pop()
+            print(f"  {cell} round {k}: LLM error {type(e).__name__}: {e}")
+            break
+        messages.append({"role": "assistant", "content": reply})
+        (run / f"chat_{k}_llm.md").write_text(reply)
+        for key in usage:
+            log["usage"][key] = log["usage"].get(key, 0) + usage[key]
+        log["prompts"]["other"] += 1
+        code = extract_python(reply)
+        chk = None
+        if code is not None:
+            gen = run / f"gen_{k}.py"
+            gen.write_text(code)
+            chk = run_check(gen, cell, netlist, run / f"check_{k}")
+            last, last_dir = chk, run / f"check_{k}"
+        log["rounds"].append({"k": k, "kind": "other", "level": "L1", "auto": True, "instruction": text,
+                              "code_found": code is not None, "llm_s": round(time.time() - t0, 2), "check": chk})
+        log["final"] = {"verdict": "pass" if passed(last) else "fail", "passed": passed(last)}
+        log_path.write_text(json.dumps(log, indent=2, ensure_ascii=False) + "\n")
+        (run / "transcript.json").write_text(json.dumps({"system": system, "messages": messages}, indent=2, ensure_ascii=False) + "\n")
+        state = "PASS" if passed(chk) else ("gen" if not (chk or {}).get("gen_ok") else f"drc={chk.get('drc_errors')} lvs={chk.get('lvs_result')}")
+        print(f"  {cell} {run.name} round {k}: {state}", flush=True)
+    if not log["rounds"] and passed(last):
+        log["final"] = {"verdict": "pass", "passed": True}
+        log_path.write_text(json.dumps(log, indent=2, ensure_ascii=False) + "\n")
+    return {"cell": cell, "attempt": run.name, "rounds": len(log["rounds"]), "passed": passed(last)}
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--tag", help="heal every attempt under runs/bench/<tag>/")
+    ap.add_argument("--run", help="one attempt directory")
+    ap.add_argument("--only", help="comma-separated cell names (with --tag)")
+    ap.add_argument("--max-rounds", type=int, default=8)
+    a = ap.parse_args()
+    runs = [Path(a.run).resolve()] if a.run else sorted(Path(p) for p in glob.glob(str(REPO / "runs" / "bench" / a.tag / "*" / "a*")))
+    only = set(a.only.split(",")) if a.only else None
+    results = []
+    for r in runs:
+        if only and json.loads((r / "meta.json").read_text())["cell"].split("_")[0] not in only:
+            continue
+        results.append(heal(r, a.max_rounds))
+    n_pass = sum(r["passed"] for r in results)
+    print(json.dumps({"attempts": len(results), "passed": n_pass, "rounds": sum(r["rounds"] for r in results)}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
