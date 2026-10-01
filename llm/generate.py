@@ -94,7 +94,8 @@ class OpenAIChat:
 
     def send(self, system, messages):
         kw = dict(model=self.model, max_completion_tokens=self.max_tokens,
-                  messages=[{"role": "system", "content": system}] + messages)
+                  messages=[{"role": "system", "content": system}] + messages,
+                  store=False)   # do not keep prompts/replies on OpenAI's side (dashboard "Logs")
         if self.temperature is not None:  # some reasoning models reject temperature, so only send it when set
             kw["temperature"] = self.temperature
         resp = self.client.chat.completions.create(**kw)
